@@ -16,6 +16,16 @@ check-python:
 		echo "Python $(PYTHON_VERSION) is installed."; \
 	fi
 
+.PHONY: install_uv
+install_uv:
+	@if ! uv --help >/dev/null 2>&1; then \
+		echo "uv not found. Installing..."; \
+		curl -LsSf https://astral.sh/uv/install.sh | sh; \
+		echo "uv installed. Ensure ~/.cargo/bin is in your PATH."; \
+	else \
+		echo "uv is already installed."; \
+	fi
+
 # Install Python dependencies from pyproject.toml
 .PHONY: requirements
 requirements:
@@ -53,5 +63,6 @@ clean:
 	@rm -rf $(VENV_DIR)
 	@echo "Virtual environment removed."
 
-install_uv:
-	curl -LsSf https://astral.sh/uv/install.sh | sh
+# Setup environment: check Python, install uv, and sync requirements
+.PHONY: setup
+setup: check-python install_uv requirements
