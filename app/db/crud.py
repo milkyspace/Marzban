@@ -31,7 +31,6 @@ from app.db.models import (
     NodeStatus,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
-from app.models.host import CreateHost as ProxyHostModify
 from app.models.node import NodeUsageResponse
 from app.models.user import (
     ReminderType,
@@ -150,37 +149,6 @@ def add_host(db: Session, db_host: ProxyHost) -> ProxyHost:
     db.commit()
     db.refresh(db_host)
     return db_host
-
-
-def update_host(db: Session, db_host: ProxyHost):
-    """Update existing ProxyHost with optimized data handling."""
-    # Check if inbound needs update
-
-    db.refresh(db_host)
-    return db_host
-
-
-def update_hosts(db: Session, modified_hosts: List[ProxyHostModify]):
-    for host in modified_hosts:
-        update_data = host.model_dump(
-            exclude={"inbound_tag", "id"},
-        )
-
-        old_host: ProxyHost | None = None
-        if host.id is not None:
-            old_host = get_host_by_id(db, host.id)
-
-        inbound = get_or_create_inbound(db, host.inbound_tag)
-
-        if old_host is None:
-            new_host = ProxyHost(inbound=inbound, **update_data)
-            db.add(new_host)
-        else:
-            for key, value in update_data.items():
-                setattr(old_host, key, value)
-
-    db.commit()
-    return modified_hosts
 
 
 def remove_host(db: Session, db_host: ProxyHost) -> ProxyHost:

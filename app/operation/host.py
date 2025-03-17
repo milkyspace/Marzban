@@ -65,6 +65,7 @@ class HostOperator(BaseOperator):
             setattr(db_host, key, value)
 
         db.commit()
+        db.refresh(db_host)
 
         logger.info(f'Host "{db_host.id}" modified by admin "{admin.username}"')
 
