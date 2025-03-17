@@ -96,7 +96,7 @@ def get_hosts(
     offset: Optional[int] = 0,
     limit: Optional[int] = 0,
     sort: ProxyHostSortingOptions = "priority",
-) -> List[ProxyHost]:
+) -> list[ProxyHost]:
     """
     Retrieves hosts.
 
@@ -135,7 +135,7 @@ def get_host_by_id(db: Session, id: int) -> ProxyHost:
     return db.query(ProxyHost).filter(ProxyHost.id == id).first()
 
 
-def add_host(db: Session, host: ProxyHostModify) -> ProxyHost:
+def add_host(db: Session, db_host: ProxyHost) -> ProxyHost:
     """
     Creates a proxy Host based on the host.
 
@@ -146,32 +146,16 @@ def add_host(db: Session, host: ProxyHostModify) -> ProxyHost:
     Returns:
         ProxyHost: The retrieved or newly created proxy host.
     """
-    inbound = get_or_create_inbound(db, host.inbound_tag)
-    host_data = host.model_dump(exclude={"inbound_tag", "id"})
-
-    db_host = ProxyHost(inbound=inbound, **host_data)
     db.add(db_host)
     db.commit()
     db.refresh(db_host)
     return db_host
 
 
-def update_host(db: Session, db_host: ProxyHost, modified_host: ProxyHostModify):
+def update_host(db: Session, db_host: ProxyHost):
     """Update existing ProxyHost with optimized data handling."""
     # Check if inbound needs update
-    if db_host.inbound_tag != modified_host.inbound_tag:
-        db_host.inbound = get_or_create_inbound(db, modified_host.inbound_tag)
 
-    # Get update data excluding inbound_tag
-    update_data = modified_host.model_dump(
-        exclude={"inbound_tag", "id"},
-    )
-
-    # Update attributes dynamically
-    for key, value in update_data.items():
-        setattr(db_host, key, value)
-
-    db.commit()
     db.refresh(db_host)
     return db_host
 
