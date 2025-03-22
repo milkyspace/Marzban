@@ -83,6 +83,7 @@ class XRayConfig(dict):
             "path": "",
             "header_type": "",
             "is_fallback": False,
+            "fallbacks": [],
         }
         return settings
 
@@ -93,8 +94,10 @@ class XRayConfig(dict):
         except KeyError:
             if self._fallbacks_inbound:
                 try:
-                    settings["port"] = self._fallbacks_inbound[0]["port"]
-                    settings["is_fallback"] = True
+                    fallbacks = self._find_fallback_inbound(inbound)
+                    if fallbacks:
+                        settings["is_fallback"] = True
+                        settings["fallbacks"] = fallbacks
                 except KeyError:
                     raise ValueError("fallbacks inbound doesn't have port")
 
@@ -251,46 +254,74 @@ class XRayConfig(dict):
     def _resolve_inbounds(self):
         """Resolve all inbounds and their settings."""
         for inbound in self["inbounds"]:
-            if inbound["protocol"] not in ProxyTypes._value2member_map_:
-                continue
+            self._read_inbound(inbound)
 
-            if inbound["tag"] in XRAY_EXCLUDE_INBOUND_TAGS:
-                continue
+    def _read_inbound(self, inbound: dict):
+        if inbound["protocol"] not in ProxyTypes._value2member_map_:
+            return
 
-            if not inbound.get("settings"):
-                inbound["settings"] = {}
-            if not inbound["settings"].get("clients"):
-                inbound["settings"]["clients"] = []
+        if inbound["tag"] in XRAY_EXCLUDE_INBOUND_TAGS:
+            return
 
-            settings = self._create_base_settings(inbound)
-            self._handle_port_settings(inbound, settings)
+        if not inbound.get("settings"):
+            inbound["settings"] = {}
+        if not inbound["settings"].get("clients"):
+            inbound["settings"]["clients"] = []
 
-            if stream := inbound.get("streamSettings"):
-                net = stream.get("network", "tcp")
-                net_settings = stream.get(f"{net}Settings", {})
-                security = stream.get("security")
-                tls_settings = stream.get(f"{security}Settings")
+        settings = self._create_base_settings(inbound)
+        self._handle_port_settings(inbound, settings)
 
-                if settings["is_fallback"] is True:
-                    security = self._fallbacks_inbound.get("streamSettings", {}).get("security")
-                    tls_settings = self._fallbacks_inbound.get("streamSettings", {}).get(f"{security}Settings", {})
+        if stream := inbound.get("streamSettings"):
+            net = stream.get("network", "tcp")
+            net_settings = stream.get(f"{net}Settings", {})
+            security = stream.get("security")
+            tls_settings = stream.get(f"{security}Settings")
 
-                settings["network"] = net
+            if settings["is_fallback"] is True:
+                for fallback in settings["fallbacks"]:
+                    security = fallback.get("streamSettings", {}).get("security")
+                    tls_settings = fallback.get("streamSettings", {}).get(f"{security}Settings", {})
+                    fallback_tag = f"{inbound['tag']}<=>{fallback['tag']}"
+                    fallback_inbound = self._make_inbound_fallback(
+                        inbound, security, tls_settings, fallback_tag, fallback.get("port")
+                    )
+                    self._read_inbound(fallback_inbound)
 
-                if security == "tls":
-                    self._handle_tls_settings(tls_settings, settings, inbound["tag"])
-                elif security == "reality":
-                    self._handle_reality_settings(tls_settings, settings, inbound["tag"])
+            settings["network"] = net
 
-                self._handle_network_settings(net, net_settings, settings, inbound["tag"])
+            if security == "tls":
+                self._handle_tls_settings(tls_settings, settings, inbound["tag"])
+            elif security == "reality":
+                self._handle_reality_settings(tls_settings, settings, inbound["tag"])
 
+            self._handle_network_settings(net, net_settings, settings, inbound["tag"])
+
+        if inbound["tag"] not in self.inbounds:
             self.inbounds.append(inbound["tag"])
+        if inbound["tag"] not in self.inbounds_by_tag:
             self.inbounds_by_tag[inbound["tag"]] = settings
 
-            try:
-                self.inbounds_by_protocol[inbound["protocol"]].append(settings)
-            except KeyError:
-                self.inbounds_by_protocol[inbound["protocol"]] = [settings]
+        try:
+            self.inbounds_by_protocol[inbound["protocol"]].append(settings)
+        except KeyError:
+            self.inbounds_by_protocol[inbound["protocol"]] = [settings]
+
+    def _make_inbound_fallback(
+        self,
+        inbound: dict,
+        security: str,
+        tls_settings: dict,
+        inbound_tag: str,
+        port: int,
+    ):
+        inbound = {
+            **inbound,
+            "port": port,
+            "tag": inbound_tag,
+        }
+        inbound["streamSettings"]["security"] = security
+        inbound["streamSettings"][f"{security}Settings"] = tls_settings
+        return inbound
 
     def get_inbound(self, tag) -> dict:
         for inbound in self["inbounds"]:
