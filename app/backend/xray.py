@@ -279,11 +279,13 @@ class XRayConfig(dict):
 
             if settings["is_fallback"] is True:
                 for fallback in settings["fallbacks"]:
-                    security = fallback.get("streamSettings", {}).get("security")
-                    tls_settings = fallback.get("streamSettings", {}).get(f"{security}Settings", {})
-                    fallback_tag = f"{inbound['tag']}<=>{fallback['tag']}"
-                    fallback_inbound = self._make_inbound_fallback(
-                        inbound, security, tls_settings, fallback_tag, fallback.get("port")
+                    fallback_tag = f"{inbound['tag']}<=>{fallback['tag']}"  # a fake inbound tag
+                    if fallback_tag in self.inbounds_by_tag:
+                        continue
+                    fallback_security = fallback.get("streamSettings", {}).get("security")
+                    fallback_tls_settings = fallback.get("streamSettings", {}).get(f"{fallback_security}Settings", {})
+                    fallback_inbound = self._make_fallback_inbound(
+                        inbound, fallback_security, fallback_tls_settings, fallback_tag, fallback.get("port")
                     )
                     self._read_inbound(fallback_inbound)
 
@@ -298,30 +300,28 @@ class XRayConfig(dict):
 
         if inbound["tag"] not in self.inbounds:
             self.inbounds.append(inbound["tag"])
-        if inbound["tag"] not in self.inbounds_by_tag:
             self.inbounds_by_tag[inbound["tag"]] = settings
+            try:
+                self.inbounds_by_protocol[inbound["protocol"]].append(settings)
+            except KeyError:
+                self.inbounds_by_protocol[inbound["protocol"]] = [settings]
 
-        try:
-            self.inbounds_by_protocol[inbound["protocol"]].append(settings)
-        except KeyError:
-            self.inbounds_by_protocol[inbound["protocol"]] = [settings]
-
-    def _make_inbound_fallback(
+    def _make_fallback_inbound(
         self,
         inbound: dict,
         security: str,
         tls_settings: dict,
         inbound_tag: str,
-        port: int,
+        port: int | str,
     ):
-        inbound = {
+        fallback_inbound = {
             **inbound,
             "port": port,
             "tag": inbound_tag,
         }
-        inbound["streamSettings"]["security"] = security
-        inbound["streamSettings"][f"{security}Settings"] = tls_settings
-        return inbound
+        fallback_inbound["streamSettings"]["security"] = security
+        fallback_inbound["streamSettings"][f"{security}Settings"] = tls_settings
+        return fallback_inbound
 
     def get_inbound(self, tag) -> dict:
         for inbound in self["inbounds"]:
