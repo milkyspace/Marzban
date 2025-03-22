@@ -14,6 +14,7 @@ from config import XRAY_EXCLUDE_INBOUND_TAGS, XRAY_FALLBACKS_INBOUND_TAGS
 
 class XRayConfig(dict):
     def __init__(self, config: Union[dict, str, PosixPath] = {}):
+        """Initialize the XRay config."""
         if isinstance(config, str):
             try:
                 # considering string as json
@@ -34,7 +35,6 @@ class XRayConfig(dict):
         self._validate()
 
         self.inbounds = []
-        self.inbounds_by_protocol = {}
         self.inbounds_by_tag = {}
         self._fallbacks_inbound = []
         for tag in XRAY_FALLBACKS_INBOUND_TAGS:
@@ -42,6 +42,7 @@ class XRayConfig(dict):
         self._resolve_inbounds()
 
     def _validate(self):
+        """Validate the config."""
         if not self.get("inbounds"):
             raise ValueError("config doesn't have inbounds")
 
@@ -60,6 +61,7 @@ class XRayConfig(dict):
                 raise ValueError("all outbounds must have a unique tag")
 
     def _find_fallback_inbound(self, inbound: dict) -> list:
+        """Find fallback inbounds for an inbound."""
         fallback_inbounds = []
         for fallback in self._fallbacks_inbound:
             for fallback_settings in fallback.get("settings", {}).get("fallbacks", []):
@@ -257,6 +259,7 @@ class XRayConfig(dict):
             self._read_inbound(inbound)
 
     def _read_inbound(self, inbound: dict):
+        """Read an inbound and its settings."""
         if inbound["protocol"] not in ProxyTypes._value2member_map_:
             return
 
@@ -301,10 +304,6 @@ class XRayConfig(dict):
         if inbound["tag"] not in self.inbounds:
             self.inbounds.append(inbound["tag"])
             self.inbounds_by_tag[inbound["tag"]] = settings
-            try:
-                self.inbounds_by_protocol[inbound["protocol"]].append(settings)
-            except KeyError:
-                self.inbounds_by_protocol[inbound["protocol"]] = [settings]
 
     def _make_fallback_inbound(
         self,
@@ -314,6 +313,7 @@ class XRayConfig(dict):
         inbound_tag: str,
         port: int | str,
     ):
+        """Make a fallback inbound."""
         fallback_inbound = {
             **inbound,
             "port": port,
@@ -324,17 +324,21 @@ class XRayConfig(dict):
         return fallback_inbound
 
     def get_inbound(self, tag) -> dict:
+        """Get an inbound by tag."""
         for inbound in self["inbounds"]:
             if inbound["tag"] == tag:
                 return inbound
 
     def get_outbound(self, tag) -> dict:
+        """Get an outbound by tag."""
         for outbound in self["outbounds"]:
             if outbound["tag"] == tag:
                 return outbound
 
     def to_json(self, **json_kwargs):
+        """Convert the config to a JSON string."""
         return json.dumps(self, **json_kwargs)
 
     def copy(self):
+        """Copy the config."""
         return deepcopy(self)
