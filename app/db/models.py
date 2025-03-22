@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Dict, Any
+
 from sqlalchemy import (
     JSON,
     BigInteger,
@@ -20,9 +21,32 @@ from sqlalchemy import (
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
+from sqlalchemy.ext.compiler import compiles
 
 from app.db.base import Base
 from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
+
+
+class CaseInsensitiveString(String):
+    def __init__(self, length=None):
+        super(CaseInsensitiveString, self).__init__(length)
+
+
+# Modify how this type is handled for each dialect
+@compiles(CaseInsensitiveString, "sqlite")
+def compile_ci_sqlite(element, compiler, **kw):
+    return f"VARCHAR({element.length}) COLLATE NOCASE"
+
+
+@compiles(CaseInsensitiveString, "postgresql")
+def compile_ci_postgresql(element, compiler, **kw):
+    return f'VARCHAR({element.length}) COLLATE "pg_catalog"."default"'
+
+
+@compiles(CaseInsensitiveString, "mysql")
+def compile_ci_mysql(element, compiler, **kw):
+    return f"VARCHAR({element.length}) COLLATE utf8mb4_general_ci"
+
 
 inbounds_groups_association = Table(
     "inbounds_groups_association",
@@ -90,7 +114,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(String(34, collation="NOCASE"), unique=True, index=True)
+    username: Mapped[str] = mapped_column(CaseInsensitiveString(34), unique=True, index=True)
     proxy_settings: Mapped[Dict[str, Any]] = mapped_column(
         JSON(True), nullable=False, server_default=text("'{}'"), default=lambda: {}
     )
@@ -108,7 +132,7 @@ class User(Base):
     )
     usage_logs: Mapped[List["UserUsageResetLogs"]] = relationship(back_populates="user")
     expire: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"))
+    admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"), nullable=True)
     admin: Mapped["Admin"] = relationship(back_populates="users")
     sub_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
     sub_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
@@ -361,12 +385,12 @@ class Node(Base):
     __tablename__ = "nodes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(256, collation="NOCASE"), unique=True)
+    name: Mapped[str] = mapped_column(CaseInsensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(Integer, unique=False, nullable=False)
     xray_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     status: Mapped[NodeStatus] = mapped_column(SQLEnum(NodeStatus), nullable=False, default=NodeStatus.connecting)
-    last_status_change: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_status_change: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
     message: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -397,7 +421,7 @@ class NodeUserUsage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, unique=False, nullable=False)  # one hour per record
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user: Mapped["User"] = relationship(back_populates="node_usages")
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     node: Mapped["Node"] = relationship(back_populates="user_usages")
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
 
@@ -408,7 +432,7 @@ class NodeUsage(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, unique=False, nullable=False)  # one hour per record
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     node: Mapped["Node"] = relationship(back_populates="usages")
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
