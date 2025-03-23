@@ -17,6 +17,7 @@ from app.db.models import (
     Admin,
     AdminUsageLogs,
     Node,
+    NextPlan,
     NodeUsage,
     NodeUserUsage,
     NotificationReminder,
@@ -43,6 +44,7 @@ from app.models.user import (
     UserCreate,
 )
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
+from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from config import NOTIFY_DAYS_LEFT, NOTIFY_REACHED_USAGE_PERCENT, USERS_AUTODELETE_DAYS
 
 
@@ -459,9 +461,10 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     Returns:
         User: Created user object.
     """
-    db_user = User(**new_user.model_dump(exclude={"groups"}))
+    db_user = User(**new_user.model_dump(exclude={"group_ids", "expire"}))
     db_user.admin = admin
     db_user.groups = groups
+    db_user.expire = new_user.expire or None
 
     db.add(db_user)
     await db.commit()
@@ -510,14 +513,78 @@ async def update_user(db: AsyncSession, dbuser: User, modify: UserModify) -> Use
     Returns:
         User: Updated user object.
     """
-    user_data = modify.model_dump(exclude={"groups"})
+    if modify.proxy_settings:
+        dbuser.proxy_settings = modify.proxy_settings.dict()
+    if modify.group_ids:
+        dbuser.groups = get_groups_by_ids(db, modify.group_ids)
 
-    for key, value in user_data.items():
-        if hasattr(dbuser, key):
-            setattr(dbuser, key, value)
+    if modify.status is not None:
+        dbuser.status = modify.status
 
-    if modify.group_ids is not None:
-        dbuser.groups = await get_groups_by_ids(db, modify.group_ids)
+    if modify.data_limit is not None:
+        dbuser.data_limit = modify.data_limit or None
+        if dbuser.status not in [UserStatus.expired, UserStatus.disabled]:
+            if not dbuser.data_limit or dbuser.used_traffic < dbuser.data_limit:
+                if dbuser.status != UserStatus.on_hold:
+                    dbuser.status = UserStatus.active
+
+                for percent in sorted(NOTIFY_REACHED_USAGE_PERCENT, reverse=True):
+                    if not dbuser.data_limit or (
+                        calculate_usage_percent(dbuser.used_traffic, dbuser.data_limit) < percent
+                    ):
+                        reminder = get_notification_reminder(db, dbuser.id, ReminderType.data_usage, threshold=percent)
+                        if reminder:
+                            delete_notification_reminder(db, reminder)
+
+            else:
+                dbuser.status = UserStatus.limited
+
+    if modify.expire == 0:
+        dbuser.expire = None
+        if dbuser.status is UserStatus.expired:
+            dbuser.status = UserStatus.active
+
+    elif modify.expire is not None:
+        dbuser.expire = modify.expire
+        if dbuser.status in [UserStatus.active, UserStatus.expired]:
+            if not dbuser.expire or dbuser.expire > datetime.now(timezone.utc):
+                dbuser.status = UserStatus.active
+                for days_left in sorted(NOTIFY_DAYS_LEFT):
+                    if not dbuser.expire or (calculate_expiration_days(dbuser.expire) > days_left):
+                        reminder = get_notification_reminder(
+                            db, dbuser.id, ReminderType.expiration_date, threshold=days_left
+                        )
+                        if reminder:
+                            delete_notification_reminder(db, reminder)
+            else:
+                dbuser.status = UserStatus.expired
+
+    if modify.note is not None:
+        dbuser.note = modify.note or None
+
+    if modify.data_limit_reset_strategy is not None:
+        dbuser.data_limit_reset_strategy = modify.data_limit_reset_strategy.value
+
+    if modify.on_hold_timeout == 0:
+        dbuser.on_hold_timeout = None
+    elif modify.on_hold_timeout is not None:
+        dbuser.on_hold_timeout = modify.on_hold_timeout
+
+    if modify.on_hold_expire_duration is not None:
+        dbuser.on_hold_expire_duration = modify.on_hold_expire_duration
+
+    if modify.next_plan is not None:
+        dbuser.next_plan = NextPlan(
+            user_template_id=modify.next_plan.user_template_id,
+            data_limit=modify.next_plan.data_limit,
+            expire=modify.next_plan.expire,
+            add_remaining_traffic=modify.next_plan.add_remaining_traffic,
+            fire_on_either=modify.next_plan.fire_on_either,
+        )
+    elif dbuser.next_plan is not None:
+        await db.delete(dbuser.next_plan)
+
+    dbuser.edit_at = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(dbuser)
