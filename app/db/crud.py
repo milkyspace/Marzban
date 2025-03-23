@@ -737,7 +737,7 @@ async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = 
     await db.commit()
 
 
-async def disable_all_active_users(db: AsyncSession, admin: Optional[Admin] = None):
+async def disable_all_active_users(db: AsyncSession, admin_id: int | None = None):
     """
     Disable all active users or users under a specific admin.
 
@@ -746,8 +746,8 @@ async def disable_all_active_users(db: AsyncSession, admin: Optional[Admin] = No
         admin (Optional[Admin]): Admin to filter users by, if any.
     """
     query = update(User).where(User.status.in_((UserStatus.active, UserStatus.on_hold)))
-    if admin:
-        query = query.where(User.admin == admin)
+    if admin_id:
+        query = query.filter(User.admin_id == admin_id)
 
     await db.execute(
         query.values(
@@ -758,7 +758,7 @@ async def disable_all_active_users(db: AsyncSession, admin: Optional[Admin] = No
     await db.commit()
 
 
-async def activate_all_disabled_users(db: AsyncSession, admin: Optional[Admin] = None):
+async def activate_all_disabled_users(db: AsyncSession, admin_id: int | None = None):
     """
     Activate all disabled users or users under a specific admin.
 
@@ -774,9 +774,9 @@ async def activate_all_disabled_users(db: AsyncSession, admin: Optional[Admin] =
             User.on_hold_expire_duration.isnot(None),
         )
     )
-    if admin:
-        query_for_active_users = query_for_active_users.where(User.admin == admin)
-        query_for_on_hold_users = query_for_on_hold_users.where(User.admin == admin)
+    if admin_id:
+        query_for_active_users = query_for_active_users.where(User.admin_id == admin_id)
+        query_for_on_hold_users = query_for_on_hold_users.where(User.admin_id == admin_id)
 
     await db.execute(
         query_for_on_hold_users.values(
