@@ -161,11 +161,6 @@ def upgrade() -> None:
                     session.add(template)
             counter += 1
         inbounds = [inbound['tag'] for inbound in config['inbounds'] if 'tag' in inbound]
-
-        # drop association tables
-        op.drop_table('template_inbounds_association')
-        op.drop_table('exclude_inbounds_association')
-
         session.query(ProxyInbound).filter(ProxyInbound.tag.notin_(inbounds)).delete(synchronize_session=False)
         session.commit()
         if template_count > 0:
@@ -190,15 +185,4 @@ def upgrade() -> None:
         session.close()
 
 def downgrade() -> None:
-    op.create_table('exclude_inbounds_association',
-    sa.Column('proxy_id', sa.INTEGER(), nullable=True),
-    sa.Column('inbound_tag', sa.VARCHAR(length=256), nullable=True),
-    sa.ForeignKeyConstraint(['inbound_tag'], ['inbounds.tag'], ),
-    sa.ForeignKeyConstraint(['proxy_id'], ['proxies.id'], )
-    )
-    op.create_table('template_inbounds_association',
-    sa.Column('user_template_id', sa.INTEGER(), nullable=True),
-    sa.Column('inbound_tag', sa.VARCHAR(length=256), nullable=True),
-    sa.ForeignKeyConstraint(['inbound_tag'], ['inbounds.tag'], ),
-    sa.ForeignKeyConstraint(['user_template_id'], ['user_templates.id'], )
-    )
+    pass

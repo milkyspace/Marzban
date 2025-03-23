@@ -1,7 +1,7 @@
 """move data from proxies table to users table
 
 Revision ID: db68f8d3d40b
-Revises: 16e19723febc
+Revises: cb99b515fbab
 Create Date: 2025-03-17 13:01:23.436120
 
 """
@@ -16,7 +16,7 @@ from app.utils.system import random_password
 
 # revision identifiers, used by Alembic.
 revision = 'db68f8d3d40b'
-down_revision = '16e19723febc'
+down_revision = 'cb99b515fbab'
 branch_labels = None
 depends_on = None
 
