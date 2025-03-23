@@ -2,17 +2,13 @@ import os
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Dict, Any
-
 from sqlalchemy import (
     JSON,
     BigInteger,
-    Boolean,
     Column,
-    DateTime,
     Enum as SQLEnum,
     Float,
     ForeignKey,
-    Integer,
     String,
     Table,
     UniqueConstraint,
@@ -22,7 +18,6 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
 from sqlalchemy.ext.compiler import compiles
-
 from app.db.base import Base
 from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
 
@@ -70,18 +65,18 @@ class Admin(Base):
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
     users: Mapped[List["User"]] = relationship(back_populates="admin")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    is_sudo: Mapped[bool] = mapped_column(Boolean, default=False)
-    password_reset_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=None)
-    discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True, default=None)
-    users_usage: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    is_disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    is_sudo: Mapped[bool] = mapped_column(default=False)
+    password_reset_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
+    users_usage: Mapped[int] = mapped_column(BigInteger, default=0)
+    is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
     usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(back_populates="admin")
-    sub_template: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True, default=None)
-    sub_domain: Mapped[Optional[str]] = mapped_column(String(256), nullable=True, default=None)
-    profile_title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, default=None)
-    support_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True, default=None)
+    sub_template: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
+    sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
+    profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    support_url: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
 
     @hybrid_property
     def reseted_usage(self) -> int:
@@ -91,7 +86,7 @@ class Admin(Base):
     def reseted_usage(cls):
         return (
             select(func.sum(AdminUsageLogs.used_traffic_at_reset))
-            .where(AdminUsageLogs.user_id == cls.id)
+            .where(AdminUsageLogs.admin_id == cls.id)
             .label("reseted_usage")
         )
 
@@ -107,7 +102,7 @@ class AdminUsageLogs(Base):
     admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"))
     admin: Mapped["Admin"] = relationship(back_populates="usage_logs")
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    reset_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    reset_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 
 class User(Base):
@@ -115,36 +110,33 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(CaseSensitiveString(34), unique=True, index=True)
-    proxy_settings: Mapped[Dict[str, Any]] = mapped_column(
-        JSON(True), nullable=False, server_default=text("'{}'"), default=lambda: {}
-    )
-    status: Mapped[UserStatus] = mapped_column(SQLEnum(UserStatus), nullable=False, default=UserStatus.active)
+    proxy_settings: Mapped[Dict[str, Any]] = mapped_column(JSON(True), server_default=text("'{}'"), default=lambda: {})
+    status: Mapped[UserStatus] = mapped_column(SQLEnum(UserStatus), default=UserStatus.active)
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     notification_reminders: Mapped[List["NotificationReminder"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    data_limit: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     data_limit_reset_strategy: Mapped[UserDataLimitResetStrategy] = mapped_column(
         SQLEnum(UserDataLimitResetStrategy),
-        nullable=False,
         default=UserDataLimitResetStrategy.no_reset,
     )
     usage_logs: Mapped[List["UserUsageResetLogs"]] = relationship(back_populates="user")
-    expire: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"), nullable=True)
+    expire: Mapped[Optional[datetime]] = mapped_column(default=None)
+    admin_id: Mapped[Optional[int]] = mapped_column(ForeignKey("admins.id"), default=None)
     admin: Mapped["Admin"] = relationship(back_populates="users")
-    sub_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
-    sub_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
-    sub_last_user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, default=None)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, default=None)
-    online_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
-    on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=None)
-    on_hold_timeout: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
-    auto_delete_in_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
-    edit_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
-    last_status_change: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    sub_revoked_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    sub_updated_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    sub_last_user_agent: Mapped[Optional[str]] = mapped_column(String(512), default=None)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
+    online_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    on_hold_timeout: Mapped[Optional[datetime]] = mapped_column(default=None)
+    auto_delete_in_days: Mapped[Optional[int]] = mapped_column(default=None)
+    edit_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    last_status_change: Mapped[Optional[datetime]] = mapped_column(default=datetime.utcnow)
 
     next_plan: Mapped[Optional["NextPlan"]] = relationship(
         uselist=False, back_populates="user", cascade="all, delete-orphan"
@@ -206,12 +198,12 @@ class NextPlan(Base):
     __tablename__ = "next_plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    user_template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_templates.id"), nullable=True)
-    data_limit: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    expire: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    add_remaining_traffic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
-    fire_on_either: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="0")
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_templates.id"))
+    data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
+    expire: Mapped[Optional[int]] = mapped_column(default=None)
+    add_remaining_traffic: Mapped[bool] = mapped_column(default=False, server_default="0")
+    fire_on_either: Mapped[bool] = mapped_column(default=True, server_default="0")
 
     user: Mapped["User"] = relationship(back_populates="next_plan")
     user_template: Mapped[Optional["UserTemplate"]] = relationship(back_populates="next_plans")
@@ -221,7 +213,7 @@ class UserTemplate(Base):
     __tablename__ = "user_templates"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
     expire_duration: Mapped[int] = mapped_column(BigInteger, default=0)  # in seconds
     username_prefix: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -242,17 +234,17 @@ class UserUsageResetLogs(Base):
     __tablename__ = "user_usage_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs")
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    reset_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    reset_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 
 class ProxyInbound(Base):
     __tablename__ = "inbounds"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tag: Mapped[str] = mapped_column(String(256), unique=True, nullable=False, index=True)
+    tag: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     hosts: Mapped[List["ProxyHost"]] = relationship(back_populates="inbound", cascade="all, delete-orphan")
     groups: Mapped[List["Group"]] = relationship(secondary=inbounds_groups_association, back_populates="inbounds")
 
@@ -299,27 +291,24 @@ class ProxyHost(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     remark: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
-    port: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    port: Mapped[Optional[int]] = mapped_column(nullable=True)
     path: Mapped[Optional[str]] = mapped_column(String(256), unique=False, nullable=True)
     sni: Mapped[Optional[str]] = mapped_column(String(1000), unique=False, nullable=True)
     host: Mapped[Optional[str]] = mapped_column(String(1000), unique=False, nullable=True)
     security: Mapped[ProxyHostSecurity] = mapped_column(
         SQLEnum(ProxyHostSecurity),
         unique=False,
-        nullable=False,
         default=ProxyHostSecurity.inbound_default,
     )
     alpn: Mapped[ProxyHostALPN] = mapped_column(
         SQLEnum(ProxyHostALPN),
         unique=False,
-        nullable=False,
         default=ProxyHostSecurity.none,
         server_default=ProxyHostSecurity.none.name,
     )
     fingerprint: Mapped[ProxyHostFingerprint] = mapped_column(
         SQLEnum(ProxyHostFingerprint),
         unique=False,
-        nullable=False,
         default=ProxyHostSecurity.none,
         server_default=ProxyHostSecurity.none.name,
     )
@@ -328,22 +317,16 @@ class ProxyHost(Base):
         String(256), ForeignKey("inbounds.tag", ondelete="SET NULL", onupdate="CASCADE"), nullable=True
     )
     inbound: Mapped[Optional["ProxyInbound"]] = relationship(back_populates="hosts")
-    allowinsecure: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    is_disabled: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True, default=False)
-    fragment_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSON(none_as_null=True), nullable=True, default=None
-    )
-    noise_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSON(none_as_null=True), nullable=True, default=None
-    )
-    random_user_agent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
-    use_sni_as_host: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
-    priority: Mapped[int] = mapped_column(Integer, nullable=False)
-    http_headers: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), nullable=True, default=None)
-    transport_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSON(none_as_null=True), nullable=True, default=None
-    )
-    mux_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), nullable=True, default=None)
+    allowinsecure: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    is_disabled: Mapped[Optional[bool]] = mapped_column(default=False)
+    fragment_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    noise_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    random_user_agent: Mapped[bool] = mapped_column(default=False, server_default="0")
+    use_sni_as_host: Mapped[bool] = mapped_column(default=False, server_default="0")
+    priority: Mapped[int] = mapped_column(nullable=False)
+    http_headers: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    transport_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    mux_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
 
 
 class System(Base):
@@ -358,7 +341,7 @@ class JWT(Base):
     __tablename__ = "jwt"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    secret_key: Mapped[str] = mapped_column(String(64), nullable=False, default=lambda: os.urandom(32).hex())
+    secret_key: Mapped[str] = mapped_column(String(64), default=lambda: os.urandom(32).hex())
 
 
 class TLS(Base):
@@ -387,30 +370,27 @@ class Node(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
-    port: Mapped[int] = mapped_column(Integer, unique=False, nullable=False)
+    port: Mapped[int] = mapped_column(unique=False, nullable=False)
     xray_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    status: Mapped[NodeStatus] = mapped_column(SQLEnum(NodeStatus), nullable=False, default=NodeStatus.connecting)
-    last_status_change: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    status: Mapped[NodeStatus] = mapped_column(SQLEnum(NodeStatus), default=NodeStatus.connecting)
+    last_status_change: Mapped[Optional[datetime]] = mapped_column(default=datetime.utcnow)
     message: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
     user_usages: Mapped[List["NodeUserUsage"]] = relationship(back_populates="node", cascade="all, delete-orphan")
     usages: Mapped[List["NodeUsage"]] = relationship(back_populates="node", cascade="all, delete-orphan")
-    usage_coefficient: Mapped[float] = mapped_column(Float, nullable=False, server_default=text("1.0"), default=1)
+    usage_coefficient: Mapped[float] = mapped_column(Float, server_default=text("1.0"), default=1)
     node_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     connection_type: Mapped[NodeConnectionType] = mapped_column(
         SQLEnum(NodeConnectionType),
         unique=False,
-        nullable=False,
         default=NodeConnectionType.grpc,
         server_default=NodeConnectionType.grpc.name,
     )
     server_ca: Mapped[str] = mapped_column(String(2048), nullable=False)
-    keep_alive: Mapped[int] = mapped_column(Integer, unique=False, nullable=False, default=0)
-    max_logs: Mapped[int] = mapped_column(
-        BigInteger, unique=False, nullable=False, default=1000, server_default=text("1000")
-    )
+    keep_alive: Mapped[int] = mapped_column(unique=False, default=0)
+    max_logs: Mapped[int] = mapped_column(BigInteger, unique=False, default=1000, server_default=text("1000"))
 
 
 class NodeUserUsage(Base):
@@ -418,10 +398,10 @@ class NodeUserUsage(Base):
     __table_args__ = (UniqueConstraint("created_at", "user_id", "node_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, unique=False, nullable=False)  # one hour per record
+    created_at: Mapped[datetime] = mapped_column(unique=False)  # one hour per record
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user: Mapped["User"] = relationship(back_populates="node_usages")
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"))
     node: Mapped["Node"] = relationship(back_populates="user_usages")
     used_traffic: Mapped[int] = mapped_column(BigInteger, default=0)
 
@@ -431,8 +411,8 @@ class NodeUsage(Base):
     __table_args__ = (UniqueConstraint("created_at", "node_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, unique=False, nullable=False)  # one hour per record
-    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(unique=False)  # one hour per record
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"))
     node: Mapped["Node"] = relationship(back_populates="usages")
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -444,10 +424,10 @@ class NotificationReminder(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user: Mapped["User"] = relationship(back_populates="notification_reminders")
-    type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType), nullable=False)
-    threshold: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
+    threshold: Mapped[Optional[int]] = mapped_column(default=None)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 
 class Group(Base):
@@ -455,7 +435,7 @@ class Group(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(64))
-    is_disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
 
     users: Mapped[List["User"]] = relationship(secondary=users_groups_association, back_populates="groups")
     inbounds: Mapped[List["ProxyInbound"]] = relationship(
