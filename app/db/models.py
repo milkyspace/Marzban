@@ -27,25 +27,25 @@ from app.db.base import Base
 from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
 
 
-class CaseInsensitiveString(String):
+class CaseSensitiveString(String):
     def __init__(self, length=None):
-        super(CaseInsensitiveString, self).__init__(length)
+        super(CaseSensitiveString, self).__init__(length)
 
 
 # Modify how this type is handled for each dialect
-@compiles(CaseInsensitiveString, "sqlite")
-def compile_ci_sqlite(element, compiler, **kw):
-    return f"VARCHAR({element.length}) COLLATE NOCASE"
+@compiles(CaseSensitiveString, "sqlite")
+def compile_cs_sqlite(element, compiler, **kw):
+    return f"VARCHAR({element.length}) COLLATE BINARY"  # BINARY is case-sensitive in SQLite
 
 
-@compiles(CaseInsensitiveString, "postgresql")
-def compile_ci_postgresql(element, compiler, **kw):
-    return f'VARCHAR({element.length}) COLLATE "pg_catalog"."default"'
+@compiles(CaseSensitiveString, "postgresql")
+def compile_cs_postgresql(element, compiler, **kw):
+    return f'VARCHAR({element.length}) COLLATE "C"'  # "C" collation is case-sensitive
 
 
-@compiles(CaseInsensitiveString, "mysql")
-def compile_ci_mysql(element, compiler, **kw):
-    return f"VARCHAR({element.length}) COLLATE utf8mb4_general_ci"
+@compiles(CaseSensitiveString, "mysql")
+def compile_cs_mysql(element, compiler, **kw):
+    return f"VARCHAR({element.length}) COLLATE utf8mb4_bin"  # utf8mb4_bin is case-sensitive
 
 
 inbounds_groups_association = Table(
@@ -114,7 +114,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(CaseInsensitiveString(34), unique=True, index=True)
+    username: Mapped[str] = mapped_column(CaseSensitiveString(34), unique=True, index=True)
     proxy_settings: Mapped[Dict[str, Any]] = mapped_column(
         JSON(True), nullable=False, server_default=text("'{}'"), default=lambda: {}
     )
@@ -242,7 +242,7 @@ class UserUsageResetLogs(Base):
     __tablename__ = "user_usage_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs")
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reset_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -385,7 +385,7 @@ class Node(Base):
     __tablename__ = "nodes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(CaseInsensitiveString(256), unique=True)
+    name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(Integer, unique=False, nullable=False)
     xray_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)

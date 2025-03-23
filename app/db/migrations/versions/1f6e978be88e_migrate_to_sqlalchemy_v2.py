@@ -9,6 +9,7 @@ Create Date: 2025-03-22 22:08:45.392485
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql, postgresql
+from app.db.models import CaseSensitiveString
 
 
 # revision identifiers, used by Alembic.
@@ -73,12 +74,11 @@ def upgrade() -> None:
 
     # Alter user_usage_logs table
     with op.batch_alter_table("user_usage_logs") as batch_op:
-        batch_op.alter_column("user_id", existing_type=sa.INTEGER(), nullable=False)
         batch_op.alter_column("reset_at", existing_type=sa.DATETIME(), nullable=False)
 
     # Alter users table
     with op.batch_alter_table("users") as batch_op:
-        batch_op.alter_column("username", existing_type=sa.VARCHAR(length=34), nullable=False)
+        batch_op.alter_column("username", existing_type=sa.VARCHAR(length=34), type_=CaseSensitiveString(length=34), nullable=False)
         batch_op.alter_column("used_traffic", existing_type=sa.BIGINT(), nullable=False)
         if dialect == "sqlite":
             batch_op.alter_column(
@@ -187,12 +187,11 @@ def downgrade() -> None:
             )
 
         batch_op.alter_column("used_traffic", existing_type=sa.BIGINT(), nullable=True)
-        batch_op.alter_column("username", existing_type=sa.VARCHAR(length=34), nullable=True)
+        batch_op.alter_column("username", existing_type=sa.VARCHAR(length=34), type_=CaseSensitiveString(length=34), nullable=True)
 
     # Alter user_usage_logs table
     with op.batch_alter_table("user_usage_logs") as batch_op:
         batch_op.alter_column("reset_at", existing_type=sa.DATETIME(), nullable=True)
-        batch_op.alter_column("user_id", existing_type=sa.INTEGER(), nullable=True)
 
     # Alter user_templates table
     with op.batch_alter_table("user_templates") as batch_op:
