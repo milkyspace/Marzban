@@ -13,6 +13,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     func,
+    event,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -247,6 +248,13 @@ class ProxyInbound(Base):
     tag: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     hosts: Mapped[List["ProxyHost"]] = relationship(back_populates="inbound", cascade="all, delete-orphan")
     groups: Mapped[List["Group"]] = relationship(secondary=inbounds_groups_association, back_populates="inbounds")
+
+
+@event.listens_for(ProxyInbound, "after_delete")
+def delete_association_rows(mapper, connection, target):
+    connection.execute(
+        inbounds_groups_association.delete().where(inbounds_groups_association.c.inbound_id == target.id)
+    )
 
 
 class ProxyHostSecurity(str, Enum):
