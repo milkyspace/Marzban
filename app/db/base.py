@@ -42,6 +42,7 @@ class GetDB:  # Context Manager
         await self.db.close()
 
 
-def get_db():  # Dependency
-    with GetDB() as db:
+async def get_db():  # Dependency
+    async with GetDB() as db:
         yield db
+
