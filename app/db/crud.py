@@ -189,7 +189,10 @@ async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
 
 def get_user_queryset() -> Query:
     return select(User).options(
-        selectinload(User.admin), selectinload(User.next_plan), selectinload(User.usage_logs), selectinload(User.groups)
+        selectinload(User.admin).options(selectinload(Admin.usage_logs)),
+        selectinload(User.next_plan),
+        selectinload(User.usage_logs),
+        selectinload(User.groups),
     )
 
 
@@ -1055,7 +1058,7 @@ async def partial_update_admin(db: AsyncSession, dbadmin: Admin, modified_admin:
     return await get_admin(db, dbadmin.username)
 
 
-async def remove_admin(db: AsyncSession, dbadmin: Admin)  -> None:
+async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
     """
     Removes an admin from the database.
 
@@ -1095,7 +1098,9 @@ async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(get_admin_queryset().where(Admin.telegram_id == telegram_id))).unique().scalar_one_or_none()
+    return (
+        (await db.execute(get_admin_queryset().where(Admin.telegram_id == telegram_id))).unique().scalar_one_or_none()
+    )
 
 
 async def get_admins(
@@ -1142,6 +1147,8 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> int:
     await db.commit()
     return await get_admin(db, db_admin.username)
 
+def get_user_template_queryset() -> Query:
+    return select(UserTemplate).options(selectinload(UserTemplate.groups))
 
 async def create_user_template(db: AsyncSession, user_template: UserTemplateCreate) -> UserTemplate:
     """
@@ -1165,8 +1172,6 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
 
     db.add(dbuser_template)
     await db.commit()
-    await db.refresh(dbuser_template)
-    return dbuser_template
 
 
 async def update_user_template(
@@ -1225,7 +1230,7 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
         UserTemplate: The user template object.
     """
     return (
-        (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id)))
+        (await db.execute(get_user_template_queryset().where(UserTemplate.id == user_template_id)))
         .unique()
         .scalar_one_or_none()
     )
@@ -1245,13 +1250,19 @@ async def get_user_templates(
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
-    dbuser_templates = select(UserTemplate)
+    dbuser_templates = get_user_template_queryset()
     if offset:
         dbuser_templates = dbuser_templates.offset(offset)
     if limit:
         dbuser_templates = dbuser_templates.limit(limit)
 
     return (await db.execute(dbuser_templates)).scalars().all()
+
+def get_node_queryset() -> Query:
+    return select(Node).options(
+        selectinload(Node.user_usages),
+        selectinload(Node.usages),
+    )
 
 
 async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
@@ -1300,7 +1311,7 @@ async def get_nodes(
     Returns:
         List[Node]: A list of Node objects matching the criteria.
     """
-    query = select(Node)
+    query = get_node_queryset()
 
     if status:
         if isinstance(status, list):
@@ -1337,7 +1348,7 @@ async def get_nodes_usage(db: AsyncSession, start: datetime, end: datetime) -> l
         )
     }
 
-    for node in (await db.execute(select(Node))).scalars().all():
+    for node in (await db.execute(get_node_queryset())).scalars().all():
         usages[node.id] = NodeUsageResponse(node_id=node.id, node_name=node.name, uplink=0, downlink=0)
 
     cond = and_(NodeUsage.created_at >= start, NodeUsage.created_at <= end)
@@ -1367,8 +1378,7 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
 
     db.add(db_node)
     await db.commit()
-    await db.refresh(db_node)
-    return db_node
+    return await get_node_by_id(db, db_node.id)
 
 
 async def remove_node(db: AsyncSession, db_node: Node) -> Node:
@@ -1384,7 +1394,6 @@ async def remove_node(db: AsyncSession, db_node: Node) -> Node:
     """
     await db.delete(db_node)
     await db.commit()
-    return db_node
 
 
 async def update_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> Node:
@@ -1413,8 +1422,7 @@ async def update_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
         db_node.status = NodeStatus.connecting
 
     await db.commit()
-    await db.refresh(db_node)
-    return db_node
+    return await get_node_by_id(db, db_node.id)
 
 
 async def update_node_status(
@@ -1444,8 +1452,7 @@ async def update_node_status(
     dbnode.node_version = node_version
     dbnode.last_status_change = datetime.now(timezone.utc)
     await db.commit()
-    await db.refresh(dbnode)
-    return dbnode
+    return await get_node_by_id(db, dbnode.id)
 
 
 async def create_notification_reminder(
@@ -1544,7 +1551,6 @@ async def delete_notification_reminder(db: AsyncSession, dbreminder: Notificatio
     """
     await db.delete(dbreminder)
     await db.commit()
-    return
 
 
 async def count_online_users(db: AsyncSession, time_delta: timedelta):
@@ -1588,11 +1594,17 @@ async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
     )
     db.add(dbgroup)
     await db.commit()
-    await db.refresh(dbgroup)
-    return dbgroup
+    return await get_group_by_id(db, dbgroup.id)
+
+def get_group_queryset() -> Query:
+    return select(Group).options(
+        selectinload(Group.inbounds),
+        selectinload(Group.users),
+        selectinload(Group.templates),
+    )
 
 
-async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> list[Group]:
+async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> tuple[list[Group], int]:
     """
     Retrieves a list of groups with optional pagination.
 
@@ -1606,7 +1618,7 @@ async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> 
             - list[Group]: A list of Group objects
             - int: The total count of groups
     """
-    groups = select(Group)
+    groups = get_group_queryset()
     if offset:
         groups = groups.offset(offset)
     if limit:
@@ -1627,7 +1639,7 @@ async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
     Returns:
         Optional[Group]: The Group object if found, None otherwise.
     """
-    return (await db.execute(select(Group).where(Group.id == group_id))).unique().scalar_one_or_none()
+    return (await db.execute(get_group_queryset().where(Group.id == group_id))).unique().scalar_one_or_none()
 
 
 async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Group]:
@@ -1641,7 +1653,7 @@ async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Grou
     Returns:
         list[Group]: A list of Group objects.
     """
-    return (await db.execute(select(Group).where(Group.id.in_(group_ids)))).scalars().all()
+    return (await db.execute(get_group_queryset().where(Group.id.in_(group_ids)))).scalars().all()
 
 
 async def update_group(db: AsyncSession, dbgroup: Group, modified_group: GroupModify) -> Group:
@@ -1663,8 +1675,8 @@ async def update_group(db: AsyncSession, dbgroup: Group, modified_group: GroupMo
     if modified_group.is_disabled is not None:
         dbgroup.is_disabled = modified_group.is_disabled
     await db.commit()
-    await db.refresh(dbgroup)
-    return dbgroup
+
+    return await get_group_by_id(db, dbgroup.id)
 
 
 async def remove_group(db: AsyncSession, dbgroup: Group):

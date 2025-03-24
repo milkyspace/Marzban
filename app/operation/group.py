@@ -22,7 +22,7 @@ class GroupOperation(BaseOperator):
         return group
 
     async def get_all_groups(self, db: AsyncSession, offset: int, limit: int) -> GroupsResponse:
-        dbgroups, count = get_group(db, offset, limit)
+        dbgroups, count = await get_group(db, offset, limit)
         return {"groups": dbgroups, "total": count}
 
     async def modify_group(self, db: AsyncSession, group_id: int, modified_group: GroupModify, admin: Admin) -> Group:
