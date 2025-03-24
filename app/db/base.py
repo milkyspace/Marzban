@@ -45,4 +45,3 @@ class GetDB:  # Context Manager
 async def get_db():  # Dependency
     async with GetDB() as db:
         yield db
-

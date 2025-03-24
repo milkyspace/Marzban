@@ -286,7 +286,12 @@ async def get_users(
     Returns:
         Union[List[User], Tuple[List[User], int]]: List of users or tuple with count.
     """
-    stmt = select(User).options(joinedload(User.admin)).options(joinedload(User.next_plan))
+    stmt = (
+        select(User)
+        .options(joinedload(User.admin))
+        .options(joinedload(User.next_plan))
+        .options(joinedload(User.usage_logs))
+    )
 
     filters = []
     if usernames:
@@ -334,10 +339,7 @@ async def get_users(
 
 
 def expired_users_query(
-    db: AsyncSession,
-    expired_after: datetime | None = None,
-    expired_before: datetime | None = None,
-    admin_id: int | None = None,
+    expired_after: datetime | None = None, expired_before: datetime | None = None, admin_id: int | None = None
 ):
     query = select(User).where(User.status.in_([UserStatus.limited, UserStatus.expired]), User.expire.isnot(None))
 
@@ -359,7 +361,7 @@ async def get_expired_users(
     expired_before: datetime | None = None,
     admin_id: int | None = None,
 ) -> list[str]:
-    subquery = await expired_users_query(db, expired_after, expired_before, admin_id).subquery()
+    subquery = await expired_users_query(expired_after, expired_before, admin_id).subquery()
 
     username_select = db.query(subquery.c.username)
 
@@ -372,7 +374,7 @@ async def delete_expired_users(
     expired_before: datetime | None = None,
     admin_id: int | None = None,
 ) -> tuple[list[str], int]:
-    subquery = await expired_users_query(db, expired_after, expired_before, admin_id).subquery()
+    subquery = await expired_users_query(expired_after, expired_before, admin_id).subquery()
 
     username_select = db.query(subquery.c.username)
 
@@ -461,14 +463,16 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
     Returns:
         User: Created user object.
     """
-    db_user = User(**new_user.model_dump(exclude={"group_ids", "expire"}))
+    db_user = User(**new_user.model_dump(exclude={"group_ids", "expire", "proxy_settings", "next_plan"}))
     db_user.admin = admin
     db_user.groups = groups
     db_user.expire = new_user.expire or None
+    db_user.proxy_settings = new_user.proxy_settings.dict()
+    db_user.next_plan = NextPlan(**new_user.next_plan.model_dump()) if new_user.next_plan else None
 
     db.add(db_user)
     await db.commit()
-    await db.refresh(db_user)
+    await db.refresh(db_user, attribute_names=["usage_logs", "next_plan"])
     return db_user
 
 

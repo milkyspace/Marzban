@@ -12,11 +12,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
 
 
 async def get_admin(db: Session, token: str) -> Admin | None:
-    payload = get_admin_payload(token)
+    payload = await get_admin_payload(token)
     if not payload:
         return
 
-    db_admin = get_admin_by_username(db, payload["username"])
+    db_admin = await get_admin_by_username(db, payload["username"])
     if db_admin:
         if db_admin.password_reset_at:
             if not payload.get("created_at"):
@@ -70,7 +70,7 @@ async def check_sudo_admin(db: Session = Depends(get_db), token: str = Depends(o
 async def validate_admin(db: Session, username: str, password: str) -> AdminValidationResult | None:
     """Validate admin credentials with environment variables or database."""
 
-    db_admin = get_admin_by_username(db, username)
+    db_admin = await get_admin_by_username(db, username)
     if db_admin and AdminInDB.model_validate(db_admin).verify_password(password):
         return AdminValidationResult(
             username=db_admin.username, is_sudo=db_admin.is_sudo, is_disabled=db_admin.is_disabled

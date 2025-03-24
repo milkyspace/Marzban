@@ -19,7 +19,7 @@ router = APIRouter(tags=["Backend"], prefix="/api/backend", responses={401: resp
 
 
 @router.get("", responses={403: responses._403})
-def get_core_config(_: Admin = Depends(check_sudo_admin)) -> dict:
+async def get_core_config(_: Admin = Depends(check_sudo_admin)) -> dict:
     """Get the current core configuration."""
     with open(XRAY_JSON, "r") as f:
         config = commentjson.loads(f.read())
@@ -43,6 +43,6 @@ async def modify_core_config(
 
     await node_operator.restart_all_node(db, admin=admin)
 
-    backend.hosts.update()
+    await backend.hosts.update()
 
     return payload

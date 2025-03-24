@@ -50,7 +50,7 @@ async def admin_token(
     # if client_ip not in LOGIN_NOTIFY_WHITE_LIST:
     #   report.login(form_data.username, "🔒", client_ip, True)
 
-    return Token(access_token=create_admin_token(form_data.username, db_admin.is_sudo))
+    return Token(access_token=await create_admin_token(form_data.username, db_admin.is_sudo))
 
 
 @router.post("", response_model=Admin, responses={409: responses._409})

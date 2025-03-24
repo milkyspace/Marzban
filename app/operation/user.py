@@ -34,7 +34,7 @@ from app.models.user import (
     UsersUsagesResponse,
     RemoveUsersResponse,
 )
-from app.node import manager as node_manager
+from app.node import node_manager as node_manager
 from app.operation import BaseOperator
 from app.utils.logger import get_logger
 
@@ -47,12 +47,12 @@ class UserOperator(BaseOperator):
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
 
         all_groups = await self.validate_all_groups(db, new_user)
-        db_admin = get_admin(db, admin.username)
+        db_admin = await get_admin(db, admin.username)
 
         try:
-            db_user = create_user(db, new_user, all_groups, db_admin)
+            db_user = await create_user(db, new_user, all_groups, db_admin)
         except IntegrityError:
-            db.rollback()
+            await db.rollback()
             self.raise_error(message="User already exists", code=409)
 
         user = UserResponse.model_validate(db_user)
@@ -64,7 +64,7 @@ class UserOperator(BaseOperator):
         return user
 
     async def modify_user(self, db: Session, username: str, modified_user: UserModify, admin: Admin) -> UserResponse:
-        db_user: User = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin)
         if modified_user.group_ids:
             await self.validate_all_groups(db, modified_user)
 
@@ -73,7 +73,7 @@ class UserOperator(BaseOperator):
 
         old_status = db_user.status
 
-        db_user = update_user(db, db_user, modified_user)
+        db_user = await update_user(db, db_user, modified_user)
         user = UserResponse.model_validate(db_user)
 
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
@@ -89,9 +89,9 @@ class UserOperator(BaseOperator):
         return user
 
     async def remove_user(self, db: Session, username: str, admin: Admin):
-        db_user: User = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin)
 
-        remove_user(db, db_user)
+        await remove_user(db, db_user)
         user = UserResponse.model_validate(db_user)
         asyncio.create_task(node_manager.remove_user(user))
 
@@ -99,9 +99,9 @@ class UserOperator(BaseOperator):
         return {}
 
     async def reset_user_data_usage(self, db: Session, username: str, admin: Admin):
-        db_user: User = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin)
 
-        db_user = reset_user_data_usage(db=db, db_user=db_user)
+        db_user = await reset_user_data_usage(db=db, db_user=db_user)
         user = UserResponse.model_validate(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
@@ -111,9 +111,9 @@ class UserOperator(BaseOperator):
         return {}
 
     async def revoke_user_sub(self, db: Session, username: str, admin: Admin):
-        db_user: User = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin)
 
-        db_user = revoke_user_sub(db=db, db_user=db_user)
+        db_user = await revoke_user_sub(db=db, db_user=db_user)
         user = UserResponse.model_validate(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
@@ -125,11 +125,11 @@ class UserOperator(BaseOperator):
     async def reset_users_data_usage(self, db: Session, admin: Admin):
         """Reset all users data usage"""
         db_admin = await self.get_validated_admin(db, admin.username)
-        reset_all_users_data_usage(db=db, admin=db_admin)
+        await reset_all_users_data_usage(db=db, admin=db_admin)
 
     async def active_next_plan(self, db: Session, username: str, admin: Admin) -> UserResponse:
         """Reset user by next plan"""
-        db_user: User = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin)
 
         if db_user is None or db_user.next_plan is None:
             self.raise_error(message="User doesn't have next plan", code=404)
@@ -147,9 +147,9 @@ class UserOperator(BaseOperator):
     async def set_owner(self, db: Session, username: str, admin_username: str, admin: Admin) -> UserResponse:
         """Set a new owner (admin) for a user."""
         new_admin = await self.get_validated_admin(db, username=admin_username)
-        db_user: User = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin)
 
-        db_user = set_owner(db, db_user, new_admin)
+        db_user = await set_owner(db, db_user, new_admin)
         user = UserResponse.model_validate(db_user)
 
         logger.info(f'{user.username}"owner successfully set to{new_admin.username} by admin "{admin.username}"')
@@ -162,7 +162,7 @@ class UserOperator(BaseOperator):
         start, end = self.validate_dates(start, end)
         db_user: User = await self.get_validated_user(db, username, admin)
 
-        usages = get_user_usages(db, db_user, start, end)
+        usages = await get_user_usages(db, db_user, start, end)
 
         return UserUsagesResponse(username=username, usages=usages)
 
@@ -188,7 +188,7 @@ class UserOperator(BaseOperator):
                 except KeyError:
                     self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
 
-        users, count = get_users(
+        users, count = await get_users(
             db=db,
             offset=offset,
             limit=limit,
@@ -213,7 +213,9 @@ class UserOperator(BaseOperator):
         """Get all users usage"""
         start, end = self.validate_dates(start, end)
 
-        usages = get_all_users_usages(db=db, start=start, end=end, admin=owner if admin.is_sudo else [admin.username])
+        usages = await get_all_users_usages(
+            db=db, start=start, end=end, admin=owner if admin.is_sudo else [admin.username]
+        )
 
         return UsersUsagesResponse(usages=usages)
 
@@ -240,7 +242,7 @@ class UserOperator(BaseOperator):
         else:
             id = None
 
-        return get_expired_users(db, expired_after, expired_before, id)
+        return await get_expired_users(db, expired_after, expired_before, id)
 
     async def delete_expired_users(
         self, db: Session, admin: Admin, expired_after: dt | None = None, expired_before: dt | None = None
@@ -258,7 +260,7 @@ class UserOperator(BaseOperator):
         else:
             id = None
 
-        removed_users, count = delete_expired_users(db, expired_after, expired_before, id)
+        removed_users, count = await delete_expired_users(db, expired_after, expired_before, id)
 
         asyncio.create_task(self.remove_users_logger(users=removed_users, by=admin.username))
 

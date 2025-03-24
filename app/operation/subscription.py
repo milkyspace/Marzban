@@ -129,7 +129,7 @@ class SubscriptionOperator(BaseOperator):
 
         # Generate subscription content
         return (
-            generate_subscription(
+            await generate_subscription(
                 user=db_user,
                 config_format=config["config_format"],
                 as_base64=config["as_base64"],
@@ -161,7 +161,7 @@ class SubscriptionOperator(BaseOperator):
             conf, media_type, db_user = await self.fetch_config(db, token=token, client_type=client_type)
 
         # Update user subscription info
-        update_user_sub(db, db_user, user_agent)
+        await update_user_sub(db, db_user, user_agent)
 
         # Create response with appropriate headers
         response_headers = self.create_response_headers(db_user, request_url)
@@ -188,6 +188,6 @@ class SubscriptionOperator(BaseOperator):
 
         db_user = await self.get_validated_sub(db, token=token)
 
-        usages = get_user_usages(db, db_user, start, end)
+        usages = await get_user_usages(db, db_user, start, end)
 
         return {"usages": usages, "username": db_user.username}
