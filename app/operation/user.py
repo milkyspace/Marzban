@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from datetime import datetime as dt
 
 from sqlalchemy.exc import IntegrityError
@@ -37,11 +38,30 @@ from app.models.user import (
 from app.node import node_manager as node_manager
 from app.operation import BaseOperator
 from app.utils.logger import get_logger
+from app.utils.jwt import create_subscription_token
+from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
+
 
 logger = get_logger("user-operator")
 
 
 class UserOperator(BaseOperator):
+    @staticmethod
+    async def generate_subscription_url(user: UserResponse):
+        salt = secrets.token_hex(8)
+        url_prefix = (
+            user.admin.sub_domain.replace("*", salt)
+            if user.admin and user.admin.sub_domain
+            else (XRAY_SUBSCRIPTION_URL_PREFIX).replace("*", salt)
+        )
+        token = await create_subscription_token(user.username)
+        return f"{url_prefix}/{XRAY_SUBSCRIPTION_PATH}/{token}"
+    
+    async def validate_user(self, user: User) -> UserResponse:
+        user = UserResponse.model_validate(user)
+        user.subscription_url = await self.generate_subscription_url(user)
+        return user
+
     async def add_user(self, db: AsyncSession, new_user: UserCreate, admin: Admin) -> UserResponse:
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
@@ -55,7 +75,7 @@ class UserOperator(BaseOperator):
             await db.rollback()
             self.raise_error(message="User already exists", code=409)
 
-        user = UserResponse.model_validate(db_user)
+        user = await self.validate_user(db_user)
 
         asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
 
@@ -63,7 +83,9 @@ class UserOperator(BaseOperator):
 
         return user
 
-    async def modify_user(self, db: AsyncSession, username: str, modified_user: UserModify, admin: Admin) -> UserResponse:
+    async def modify_user(
+        self, db: AsyncSession, username: str, modified_user: UserModify, admin: Admin
+    ) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
         if modified_user.group_ids:
             await self.validate_all_groups(db, modified_user)
@@ -74,7 +96,7 @@ class UserOperator(BaseOperator):
         old_status = db_user.status
 
         db_user = await update_user(db, db_user, modified_user)
-        user = UserResponse.model_validate(db_user)
+        user = await self.validate_user(db_user)
 
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
@@ -92,7 +114,7 @@ class UserOperator(BaseOperator):
         db_user = await self.get_validated_user(db, username, admin)
 
         await remove_user(db, db_user)
-        user = UserResponse.model_validate(db_user)
+        user = await self.validate_user(db_user)
         asyncio.create_task(node_manager.remove_user(user))
 
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
@@ -102,7 +124,7 @@ class UserOperator(BaseOperator):
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await reset_user_data_usage(db=db, db_user=db_user)
-        user = UserResponse.model_validate(db_user)
+        user = await self.validate_user(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
 
@@ -110,17 +132,17 @@ class UserOperator(BaseOperator):
 
         return {}
 
-    async def revoke_user_sub(self, db: AsyncSession, username: str, admin: Admin):
+    async def revoke_user_sub(self, db: AsyncSession, username: str, admin: Admin) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await revoke_user_sub(db=db, db_user=db_user)
-        user = UserResponse.model_validate(db_user)
+        user = await self.validate_user(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
 
         logger.info(f'User "{db_user.username}" subscription was revoked by admin "{admin.username}"')
 
-        return {}
+        return user
 
     async def reset_users_data_usage(self, db: AsyncSession, admin: Admin):
         """Reset all users data usage"""
@@ -136,8 +158,8 @@ class UserOperator(BaseOperator):
 
         db_user = reset_user_by_next(db=db, dbuser=db_user)
 
-        user = UserResponse.model_validate(db_user)
-        if db_user.status in (UserStatus.active, UserStatus.on_hold):
+        user = await self.validate_user(db_user)
+        if user.status in (UserStatus.active, UserStatus.on_hold):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
 
         logger.info(f'User "{db_user.username}"\'s usage was reset by next plan by admin "{admin.username}"')
@@ -150,8 +172,7 @@ class UserOperator(BaseOperator):
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await set_owner(db, db_user, new_admin)
-        user = UserResponse.model_validate(db_user)
-
+        user = await self.validate_user(db_user)
         logger.info(f'{user.username}"owner successfully set to{new_admin.username} by admin "{admin.username}"')
 
         return user
@@ -160,11 +181,15 @@ class UserOperator(BaseOperator):
         self, db: AsyncSession, username: str, admin: Admin, start: str = "", end: str = ""
     ) -> UserUsagesResponse:
         start, end = self.validate_dates(start, end)
-        db_user: User = await self.get_validated_user(db, username, admin)
+        db_user = await self.get_validated_user(db, username, admin)
 
         usages = await get_user_usages(db, db_user, start, end)
 
         return UserUsagesResponse(username=username, usages=usages)
+
+    async def get_user(self, db: AsyncSession, username: str, admin: Admin) -> UserResponse:
+        db_user = await self.get_validated_user(db, username, admin)
+        return await self.validate_user(db_user)
 
     async def get_users(
         self,
@@ -177,6 +202,7 @@ class UserOperator(BaseOperator):
         owner: list[str] | None = None,
         status: UserStatus | None = None,
         sort: str | None = None,
+        load_sub: bool = False,
     ) -> UsersResponse:
         """Get all users"""
         sort_list = []
@@ -200,7 +226,11 @@ class UserOperator(BaseOperator):
             return_with_count=True,
         )
 
-        return UsersResponse(users=users, total=count)
+        response = UsersResponse(users=users, total=count)
+        if load_sub:
+            await response.load_subscriptions(self.generate_subscription_url)
+
+        return response
 
     async def get_users_usage(
         self,

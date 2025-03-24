@@ -9,8 +9,6 @@ from aiocache import cached
 
 from config import JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 
-key = None
-
 
 @cached()
 async def get_secret_key():
@@ -47,23 +45,23 @@ async def get_admin_payload(token: str) -> dict | None:
         return
 
 
-def create_subscription_token(username: str) -> str:
+async def create_subscription_token(username: str) -> str:
     data = username + "," + str(ceil(time.time()))
     data_b64_str = b64encode(data.encode("utf-8"), altchars=b"-_").decode("utf-8").rstrip("=")
-    data_b64_sign = b64encode(sha256((data_b64_str + key).encode("utf-8")).digest(), altchars=b"-_").decode("utf-8")[
+    data_b64_sign = b64encode(sha256((data_b64_str + await get_secret_key()).encode("utf-8")).digest(), altchars=b"-_").decode("utf-8")[
         :10
     ]
     data_final = data_b64_str + data_b64_sign
     return data_final
 
 
-def get_subscription_payload(token: str) -> dict | None:
+async def get_subscription_payload(token: str) -> dict | None:
     try:
         if len(token) < 15:
             return
 
         if token.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."):
-            payload = jwt.decode(token, key, algorithms=["HS256"])
+            payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"])
             if payload.get("access") == "subscription":
                 return {
                     "username": payload["sub"],
@@ -83,7 +81,7 @@ def get_subscription_payload(token: str) -> dict | None:
                 u_token_dec_str = u_token_dec.decode("utf-8")
             except Exception:
                 return
-            u_token_resign = b64encode(sha256((u_token + key).encode("utf-8")).digest(), altchars=b"-_").decode(
+            u_token_resign = b64encode(sha256((u_token + await get_secret_key()).encode("utf-8")).digest(), altchars=b"-_").decode(
                 "utf-8"
             )[:10]
             if u_signature == u_token_resign:

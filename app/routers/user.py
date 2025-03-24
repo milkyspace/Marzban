@@ -126,7 +126,7 @@ async def active_next_plan(username: str, db: AsyncSession = Depends(get_db), ad
 @router.get("/{username}", response_model=UserResponse, responses={403: responses._403, 404: responses._404})
 async def get_user(username: str, db: AsyncSession = Depends(get_db), admin: Admin = Depends(get_current)):
     """Get user information"""
-    return await user_operator.get_validated_user(db=db, username=username, admin=admin)
+    return await user_operator.get_user(db=db, username=username, admin=admin)
 
 
 @router.get(
@@ -140,6 +140,7 @@ async def get_users(
     owner: list[str] | None = Query(None, alias="admin"),
     status: UserStatus | None = None,
     sort: str | None = None,
+    load_sub: bool = False,
     db: AsyncSession = Depends(get_db),
     admin: Admin = Depends(get_current),
 ):
@@ -154,6 +155,7 @@ async def get_users(
         owner=owner,
         status=status,
         sort=sort,
+        load_sub=load_sub,
     )
 
 

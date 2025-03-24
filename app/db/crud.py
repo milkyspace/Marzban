@@ -74,7 +74,7 @@ async def get_or_create_inbound(db: AsyncSession, inbound_tag: str) -> ProxyInbo
     """
     stmt = select(ProxyInbound).where(ProxyInbound.tag == inbound_tag)
     result = await db.execute(stmt)
-    inbound = result.scalar_one_or_none()
+    inbound = result.unique().scalar_one_or_none()
 
     if not inbound:
         inbound = ProxyInbound(tag=inbound_tag)
@@ -187,7 +187,7 @@ async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
     return db_host
 
 
-def get_user_queryset(db: AsyncSession) -> Query:
+def get_user_queryset() -> Query:
     """
     Retrieves the base user query with joined admin details.
 
@@ -197,7 +197,13 @@ def get_user_queryset(db: AsyncSession) -> Query:
     Returns:
         Query: Base user query.
     """
-    return select(User).options(joinedload(User.admin)).options(joinedload(User.next_plan))
+    return (
+        select(User)
+        .options(joinedload(User.admin))
+        .options(joinedload(User.next_plan))
+        .options(joinedload(User.usage_logs))
+        .options(joinedload(User.groups))
+    )
 
 
 async def get_user(db: AsyncSession, username: str) -> Optional[User]:
@@ -211,17 +217,13 @@ async def get_user(db: AsyncSession, username: str) -> Optional[User]:
     Returns:
         Optional[User]: The user object if found, else None.
     """
-    stmt = (
-        select(User)
-        .options(joinedload(User.admin))
-        .options(joinedload(User.next_plan))
-        .where(User.username == username)
-    )
+    stmt = get_user_queryset().where(User.username == username)
+
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    return result.unique().scalar_one_or_none()
 
 
-async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
+async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     """
     Retrieves a user by user ID.
 
@@ -232,7 +234,7 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
     Returns:
         Optional[User]: The user object if found, else None.
     """
-    stmt = select(User).options(joinedload(User.admin)).options(joinedload(User.next_plan)).where(User.id == user_id)
+    stmt = get_user_queryset().where(User.id == user_id)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -286,12 +288,7 @@ async def get_users(
     Returns:
         Union[List[User], Tuple[List[User], int]]: List of users or tuple with count.
     """
-    stmt = (
-        select(User)
-        .options(joinedload(User.admin))
-        .options(joinedload(User.next_plan))
-        .options(joinedload(User.usage_logs))
-    )
+    stmt = get_user_queryset()
 
     filters = []
     if usernames:
@@ -344,10 +341,8 @@ def expired_users_query(
     query = select(User).where(User.status.in_([UserStatus.limited, UserStatus.expired]), User.expire.isnot(None))
 
     if expired_after:
-        print("expired after:", expired_after)
         query = query.where(User.expire >= expired_after)
     if expired_before:
-        print("expired after:", expired_before)
         query = query.where(User.expire <= expired_before)
     if admin_id:
         query = query.where(User.admin_id == admin_id)
@@ -472,8 +467,7 @@ async def create_user(db: AsyncSession, new_user: UserCreate, groups: list[Group
 
     db.add(db_user)
     await db.commit()
-    await db.refresh(db_user, attribute_names=["usage_logs", "next_plan"])
-    return db_user
+    return await get_user(db, username=new_user.username)
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
@@ -551,7 +545,7 @@ async def update_user(db: AsyncSession, dbuser: User, modify: UserModify) -> Use
     elif modify.expire is not None:
         dbuser.expire = modify.expire
         if dbuser.status in [UserStatus.active, UserStatus.expired]:
-            if not dbuser.expire or dbuser.expire > datetime.now(timezone.utc):
+            if not dbuser.expire or dbuser.expire.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
                 dbuser.status = UserStatus.active
                 for days_left in sorted(NOTIFY_DAYS_LEFT):
                     if not dbuser.expire or (calculate_expiration_days(dbuser.expire) > days_left):
@@ -627,7 +621,7 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     return db_user
 
 
-async def reset_user_by_next(db: AsyncSession, dbuser: User) -> None | User:
+async def reset_user_by_next(db: AsyncSession, dbuser: User) -> User:
     """
     Resets the data usage of a user based on next user.
 
@@ -638,9 +632,6 @@ async def reset_user_by_next(db: AsyncSession, dbuser: User) -> None | User:
     Returns:
         User: The updated user object.
     """
-
-    if dbuser.next_plan is None:
-        return
 
     usage_log = UserUsageResetLogs(
         user=dbuser,
@@ -706,7 +697,7 @@ async def update_user_sub(db: AsyncSession, dbuser: User, user_agent: str) -> Us
     Returns:
         User: The updated user object.
     """
-    dbuser.sub_updated_at = datetime.utcnow()
+    dbuser.sub_updated_at = datetime.now(timezone.utc)
     dbuser.sub_last_user_agent = user_agent
 
     await db.commit()
@@ -722,7 +713,7 @@ async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = 
         db (AsyncSession): Database session.
         admin (Optional[Admin]): Admin to filter users by, if any.
     """
-    query = get_user_queryset(db)
+    query = get_user_queryset()
 
     if admin:
         query = query.where(User.admin == admin)
@@ -987,7 +978,7 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(select(Admin).where(Admin.username == username))).scalar_one_or_none()
+    return (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
 
 
 async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
@@ -1109,7 +1100,7 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(select(Admin).where(Admin.id == id))).scalar_one_or_none()
+    return (await db.execute(select(Admin).where(Admin.id == id))).unique().scalar_one_or_none()
 
 
 async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
@@ -1253,7 +1244,7 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
     Returns:
         UserTemplate: The user template object.
     """
-    return (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id))).scalar_one_or_none()
+    return (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id))).unique().scalar_one_or_none()
 
 
 async def get_user_templates(
@@ -1290,7 +1281,7 @@ async def get_node(db: AsyncSession, name: str) -> Optional[Node]:
     Returns:
         Optional[Node]: The Node object if found, None otherwise.
     """
-    return (await db.execute(select(Node).where(Node.name == name))).scalar_one_or_none()
+    return (await db.execute(select(Node).where(Node.name == name))).unique().scalar_one_or_none()
 
 
 async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
@@ -1304,7 +1295,7 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
     Returns:
         Optional[Node]: The Node object if found, None otherwise.
     """
-    return (await db.execute(select(Node).where(Node.id == node_id))).scalar_one_or_none()
+    return (await db.execute(select(Node).where(Node.id == node_id))).unique().scalar_one_or_none()
 
 
 async def get_nodes(
@@ -1527,7 +1518,7 @@ async def get_notification_reminder(
         return None
 
     # Check if the reminder has expired
-    if reminder.expires_at and reminder.expires_at < datetime.utcnow():
+    if reminder.expires_at and reminder.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         await db.delete(reminder)
         await db.commit()
         return None
@@ -1583,7 +1574,7 @@ async def count_online_users(db: AsyncSession, time_delta: timedelta):
     Returns:
         int: The number of users who have been online within the specified time period.
     """
-    twenty_four_hours_ago = datetime.utcnow() - time_delta
+    twenty_four_hours_ago = datetime.now(timezone.utc) - time_delta
     query = select(func.count(User.id)).where(User.online_at.isnot(None), User.online_at >= twenty_four_hours_ago)
     return (await db.execute(query)).scalar_one_or_none()
 
@@ -1617,7 +1608,7 @@ async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
     return dbgroup
 
 
-async def get_group(db: AsyncSession, offset: int = None, limit: int = None):
+async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> list[Group]:
     """
     Retrieves a list of groups with optional pagination.
 
@@ -1628,7 +1619,7 @@ async def get_group(db: AsyncSession, offset: int = None, limit: int = None):
 
     Returns:
         tuple: A tuple containing:
-            - List[Group]: A list of Group objects
+            - list[Group]: A list of Group objects
             - int: The total count of groups
     """
     groups = select(Group)
@@ -1652,7 +1643,7 @@ async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
     Returns:
         Optional[Group]: The Group object if found, None otherwise.
     """
-    return (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+    return (await db.execute(select(Group).where(Group.id == group_id))).unique().scalar_one_or_none()
 
 
 async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Group]:
