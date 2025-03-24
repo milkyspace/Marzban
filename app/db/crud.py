@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple, Union
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Query, joinedload
+from sqlalchemy.orm import Query, joinedload, selectinload
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.models import (
@@ -188,21 +188,8 @@ async def remove_host(db: AsyncSession, db_host: ProxyHost) -> ProxyHost:
 
 
 def get_user_queryset() -> Query:
-    """
-    Retrieves the base user query with joined admin details.
-
-    Args:
-        db (AsyncSession): Database session.
-
-    Returns:
-        Query: Base user query.
-    """
-    return (
-        select(User)
-        .options(joinedload(User.admin))
-        .options(joinedload(User.next_plan))
-        .options(joinedload(User.usage_logs))
-        .options(joinedload(User.groups))
+    return select(User).options(
+        selectinload(User.admin), selectinload(User.next_plan), selectinload(User.usage_logs), selectinload(User.groups)
     )
 
 
@@ -236,7 +223,7 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     """
     stmt = get_user_queryset().where(User.id == user_id)
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    return result.unique().scalar_one_or_none()
 
 
 UsersSortingOptions = Enum(
@@ -499,7 +486,7 @@ async def remove_users(db: AsyncSession, dbusers: List[User]):
     await db.commit()
 
 
-async def update_user(db: AsyncSession, dbuser: User, modify: UserModify) -> User:
+async def update_user(db: AsyncSession, db_user: User, modify: UserModify) -> User:
     """
     Updates a user's information.
 
@@ -512,81 +499,83 @@ async def update_user(db: AsyncSession, dbuser: User, modify: UserModify) -> Use
         User: Updated user object.
     """
     if modify.proxy_settings:
-        dbuser.proxy_settings = modify.proxy_settings.dict()
+        db_user.proxy_settings = modify.proxy_settings.dict()
     if modify.group_ids:
-        dbuser.groups = get_groups_by_ids(db, modify.group_ids)
+        db_user.groups = await get_groups_by_ids(db, modify.group_ids)
 
     if modify.status is not None:
-        dbuser.status = modify.status
+        db_user.status = modify.status
 
     if modify.data_limit is not None:
-        dbuser.data_limit = modify.data_limit or None
-        if dbuser.status not in [UserStatus.expired, UserStatus.disabled]:
-            if not dbuser.data_limit or dbuser.used_traffic < dbuser.data_limit:
-                if dbuser.status != UserStatus.on_hold:
-                    dbuser.status = UserStatus.active
+        db_user.data_limit = modify.data_limit or None
+        if db_user.status not in [UserStatus.expired, UserStatus.disabled]:
+            if not db_user.data_limit or db_user.used_traffic < db_user.data_limit:
+                if db_user.status != UserStatus.on_hold:
+                    db_user.status = UserStatus.active
 
                 for percent in sorted(NOTIFY_REACHED_USAGE_PERCENT, reverse=True):
-                    if not dbuser.data_limit or (
-                        calculate_usage_percent(dbuser.used_traffic, dbuser.data_limit) < percent
+                    if not db_user.data_limit or (
+                        calculate_usage_percent(db_user.used_traffic, db_user.data_limit) < percent
                     ):
-                        reminder = get_notification_reminder(db, dbuser.id, ReminderType.data_usage, threshold=percent)
-                        if reminder:
-                            delete_notification_reminder(db, reminder)
-
-            else:
-                dbuser.status = UserStatus.limited
-
-    if modify.expire == 0:
-        dbuser.expire = None
-        if dbuser.status is UserStatus.expired:
-            dbuser.status = UserStatus.active
-
-    elif modify.expire is not None:
-        dbuser.expire = modify.expire
-        if dbuser.status in [UserStatus.active, UserStatus.expired]:
-            if not dbuser.expire or dbuser.expire.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
-                dbuser.status = UserStatus.active
-                for days_left in sorted(NOTIFY_DAYS_LEFT):
-                    if not dbuser.expire or (calculate_expiration_days(dbuser.expire) > days_left):
-                        reminder = get_notification_reminder(
-                            db, dbuser.id, ReminderType.expiration_date, threshold=days_left
+                        reminder = await get_notification_reminder(
+                            db, db_user.id, ReminderType.data_usage, threshold=percent
                         )
                         if reminder:
-                            delete_notification_reminder(db, reminder)
+                            await delete_notification_reminder(db, reminder)
+
             else:
-                dbuser.status = UserStatus.expired
+                db_user.status = UserStatus.limited
+
+    if modify.expire == 0:
+        db_user.expire = None
+        if db_user.status is UserStatus.expired:
+            db_user.status = UserStatus.active
+
+    elif modify.expire is not None:
+        db_user.expire = modify.expire
+        if db_user.status in [UserStatus.active, UserStatus.expired]:
+            if not db_user.expire or db_user.expire.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+                db_user.status = UserStatus.active
+                for days_left in sorted(NOTIFY_DAYS_LEFT):
+                    if not db_user.expire or (calculate_expiration_days(db_user.expire) > days_left):
+                        reminder = await get_notification_reminder(
+                            db, db_user.id, ReminderType.expiration_date, threshold=days_left
+                        )
+                        if reminder:
+                            await delete_notification_reminder(db, reminder)
+            else:
+                db_user.status = UserStatus.expired
 
     if modify.note is not None:
-        dbuser.note = modify.note or None
+        db_user.note = modify.note or None
 
     if modify.data_limit_reset_strategy is not None:
-        dbuser.data_limit_reset_strategy = modify.data_limit_reset_strategy.value
+        db_user.data_limit_reset_strategy = modify.data_limit_reset_strategy.value
 
     if modify.on_hold_timeout == 0:
-        dbuser.on_hold_timeout = None
+        db_user.on_hold_timeout = None
     elif modify.on_hold_timeout is not None:
-        dbuser.on_hold_timeout = modify.on_hold_timeout
+        db_user.on_hold_timeout = modify.on_hold_timeout
 
     if modify.on_hold_expire_duration is not None:
-        dbuser.on_hold_expire_duration = modify.on_hold_expire_duration
+        db_user.on_hold_expire_duration = modify.on_hold_expire_duration
 
     if modify.next_plan is not None:
-        dbuser.next_plan = NextPlan(
+        db_user.next_plan = NextPlan(
             user_template_id=modify.next_plan.user_template_id,
             data_limit=modify.next_plan.data_limit,
             expire=modify.next_plan.expire,
             add_remaining_traffic=modify.next_plan.add_remaining_traffic,
             fire_on_either=modify.next_plan.fire_on_either,
         )
-    elif dbuser.next_plan is not None:
-        await db.delete(dbuser.next_plan)
+    elif db_user.next_plan is not None:
+        await db.delete(db_user.next_plan)
 
-    dbuser.edit_at = datetime.now(timezone.utc)
+    db_user.edit_at = datetime.now(timezone.utc)
 
     await db.commit()
-    await db.refresh(dbuser)
-    return dbuser
+    await db.refresh(db_user)
+    return db_user
 
 
 async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
@@ -600,6 +589,8 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     Returns:
         User: The updated user object.
     """
+    username = db_user.username
+    await db.refresh(db_user, ["node_usages", "next_plan"])
     usage_log = UserUsageResetLogs(
         user=db_user,
         used_traffic_at_reset=db_user.used_traffic,
@@ -614,14 +605,12 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     if db_user.next_plan:
         await db.delete(db_user.next_plan)
         db_user.next_plan = None
-    db.add(db_user)
-
+    
     await db.commit()
-    await db.refresh(db_user)
-    return db_user
+    return await get_user(db, username)
 
 
-async def reset_user_by_next(db: AsyncSession, dbuser: User) -> User:
+async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     """
     Resets the data usage of a user based on next user.
 
@@ -632,36 +621,36 @@ async def reset_user_by_next(db: AsyncSession, dbuser: User) -> User:
     Returns:
         User: The updated user object.
     """
+    username = db_user.username
+    await db.refresh(db_user, ["node_usages", "next_plan", "data_limit"])
 
     usage_log = UserUsageResetLogs(
-        user=dbuser,
-        used_traffic_at_reset=dbuser.used_traffic,
+        user=db_user,
+        used_traffic_at_reset=db_user.used_traffic,
     )
     db.add(usage_log)
 
-    dbuser.node_usages.clear()
-    dbuser.status = UserStatus.active.value
+    db_user.node_usages.clear()
+    db_user.status = UserStatus.active.value
 
-    if dbuser.next_plan.user_template_id is None:
-        dbuser.data_limit = dbuser.next_plan.data_limit + (
-            0 if dbuser.next_plan.add_remaining_traffic else dbuser.data_limit or 0 - dbuser.used_traffic
+    if db_user.next_plan.user_template_id is None:
+        db_user.data_limit = db_user.next_plan.data_limit + (
+            0 if db_user.next_plan.add_remaining_traffic else db_user.data_limit or 0 - db_user.used_traffic
         )
-        dbuser.expire = timedelta(seconds=dbuser.next_plan.expire) + datetime.now(UTC)
+        db_user.expire = timedelta(seconds=db_user.next_plan.expire) + datetime.now(UTC)
     else:
-        dbuser.groups = dbuser.next_plan.user_template.groups
-        dbuser.data_limit = dbuser.next_plan.user_template.data_limit + (
-            0 if dbuser.next_plan.add_remaining_traffic else dbuser.data_limit or 0 - dbuser.used_traffic
+        db_user.groups = db_user.next_plan.user_template.groups
+        db_user.data_limit = db_user.next_plan.user_template.data_limit + (
+            0 if db_user.next_plan.add_remaining_traffic else db_user.data_limit or 0 - db_user.used_traffic
         )
-        dbuser.expire = timedelta(seconds=dbuser.next_plan.user_template.expire_duration) + datetime.now(UTC)
+        db_user.expire = timedelta(seconds=db_user.next_plan.user_template.expire_duration) + datetime.now(UTC)
 
-    dbuser.used_traffic = 0
-    await db.delete(dbuser.next_plan)
-    dbuser.next_plan = None
-    db.add(dbuser)
+    db_user.used_traffic = 0
+    await db.delete(db_user.next_plan)
+    db_user.next_plan = None
 
     await db.commit()
-    await db.refresh(dbuser)
-    return dbuser
+    return await get_user(db, username)
 
 
 async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
@@ -681,8 +670,7 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
     db_user = await update_user(db, db_user, db_user)
 
     await db.commit()
-    await db.refresh(db_user)
-    return db_user
+    return await get_user(db, db_user.username)
 
 
 async def update_user_sub(db: AsyncSession, dbuser: User, user_agent: str) -> User:
@@ -701,8 +689,6 @@ async def update_user_sub(db: AsyncSession, dbuser: User, user_agent: str) -> Us
     dbuser.sub_last_user_agent = user_agent
 
     await db.commit()
-    await db.refresh(dbuser)
-    return dbuser
 
 
 async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = None):
@@ -713,7 +699,7 @@ async def reset_all_users_data_usage(db: AsyncSession, admin: Optional[Admin] = 
         db (AsyncSession): Database session.
         admin (Optional[Admin]): Admin to filter users by, if any.
     """
-    query = get_user_queryset()
+    query = get_user_queryset().options(selectinload(User.node_usages))
 
     if admin:
         query = query.where(User.admin == admin)
@@ -885,13 +871,11 @@ async def update_user_status(db: AsyncSession, dbuser: User, status: UserStatus)
         User: The updated user object.
     """
     dbuser.status = status
-    dbuser.last_status_change = datetime.utcnow()
+    dbuser.last_status_change = datetime.now(timezone.utc)
     await db.commit()
-    await db.refresh(dbuser)
-    return dbuser
 
 
-async def set_owner(db: AsyncSession, dbuser: User, admin: Admin) -> User:
+async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     """
     Sets the owner (admin) of a user.
 
@@ -903,10 +887,9 @@ async def set_owner(db: AsyncSession, dbuser: User, admin: Admin) -> User:
     Returns:
         User: The updated user object.
     """
-    dbuser.admin = admin
+    db_user.admin = admin
     await db.commit()
-    await db.refresh(dbuser)
-    return dbuser
+    return await get_user(db, db_user.username)
 
 
 async def start_user_expire(db: AsyncSession, dbuser: User) -> User:
@@ -924,8 +907,6 @@ async def start_user_expire(db: AsyncSession, dbuser: User) -> User:
     dbuser.on_hold_expire_duration = None
     dbuser.on_hold_timeout = None
     await db.commit()
-    await db.refresh(dbuser)
-    return dbuser
 
 
 async def get_system_usage(db: AsyncSession) -> System:
@@ -1244,7 +1225,11 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
     Returns:
         UserTemplate: The user template object.
     """
-    return (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id))).unique().scalar_one_or_none()
+    return (
+        (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id)))
+        .unique()
+        .scalar_one_or_none()
+    )
 
 
 async def get_user_templates(

@@ -130,7 +130,7 @@ class UserOperator(BaseOperator):
 
         logger.info(f'User "{db_user.username}" usage was reset by admin "{admin.username}"')
 
-        return {}
+        return user
 
     async def revoke_user_sub(self, db: AsyncSession, username: str, admin: Admin) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
@@ -156,7 +156,7 @@ class UserOperator(BaseOperator):
         if db_user is None or db_user.next_plan is None:
             self.raise_error(message="User doesn't have next plan", code=404)
 
-        db_user = reset_user_by_next(db=db, dbuser=db_user)
+        db_user = reset_user_by_next(db=db, db_user=db_user)
 
         user = await self.validate_user(db_user)
         if user.status in (UserStatus.active, UserStatus.on_hold):
