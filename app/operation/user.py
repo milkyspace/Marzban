@@ -4,7 +4,7 @@ from datetime import datetime as dt
 from sqlalchemy.exc import IntegrityError
 
 from app.backend import config
-from app.db import Session
+from app.db import AsyncSession
 from app.db.crud import (
     create_user,
     get_admin,
@@ -42,7 +42,7 @@ logger = get_logger("user-operator")
 
 
 class UserOperator(BaseOperator):
-    async def add_user(self, db: Session, new_user: UserCreate, admin: Admin) -> UserResponse:
+    async def add_user(self, db: AsyncSession, new_user: UserCreate, admin: Admin) -> UserResponse:
         if new_user.next_plan is not None and new_user.next_plan.user_template_id is not None:
             await self.get_validated_user_template(db, new_user.next_plan.user_template_id)
 
@@ -63,7 +63,7 @@ class UserOperator(BaseOperator):
 
         return user
 
-    async def modify_user(self, db: Session, username: str, modified_user: UserModify, admin: Admin) -> UserResponse:
+    async def modify_user(self, db: AsyncSession, username: str, modified_user: UserModify, admin: Admin) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
         if modified_user.group_ids:
             await self.validate_all_groups(db, modified_user)
@@ -88,7 +88,7 @@ class UserOperator(BaseOperator):
 
         return user
 
-    async def remove_user(self, db: Session, username: str, admin: Admin):
+    async def remove_user(self, db: AsyncSession, username: str, admin: Admin):
         db_user = await self.get_validated_user(db, username, admin)
 
         await remove_user(db, db_user)
@@ -98,7 +98,7 @@ class UserOperator(BaseOperator):
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
         return {}
 
-    async def reset_user_data_usage(self, db: Session, username: str, admin: Admin):
+    async def reset_user_data_usage(self, db: AsyncSession, username: str, admin: Admin):
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await reset_user_data_usage(db=db, db_user=db_user)
@@ -110,7 +110,7 @@ class UserOperator(BaseOperator):
 
         return {}
 
-    async def revoke_user_sub(self, db: Session, username: str, admin: Admin):
+    async def revoke_user_sub(self, db: AsyncSession, username: str, admin: Admin):
         db_user = await self.get_validated_user(db, username, admin)
 
         db_user = await revoke_user_sub(db=db, db_user=db_user)
@@ -122,12 +122,12 @@ class UserOperator(BaseOperator):
 
         return {}
 
-    async def reset_users_data_usage(self, db: Session, admin: Admin):
+    async def reset_users_data_usage(self, db: AsyncSession, admin: Admin):
         """Reset all users data usage"""
         db_admin = await self.get_validated_admin(db, admin.username)
         await reset_all_users_data_usage(db=db, admin=db_admin)
 
-    async def active_next_plan(self, db: Session, username: str, admin: Admin) -> UserResponse:
+    async def active_next_plan(self, db: AsyncSession, username: str, admin: Admin) -> UserResponse:
         """Reset user by next plan"""
         db_user = await self.get_validated_user(db, username, admin)
 
@@ -144,7 +144,7 @@ class UserOperator(BaseOperator):
 
         return user
 
-    async def set_owner(self, db: Session, username: str, admin_username: str, admin: Admin) -> UserResponse:
+    async def set_owner(self, db: AsyncSession, username: str, admin_username: str, admin: Admin) -> UserResponse:
         """Set a new owner (admin) for a user."""
         new_admin = await self.get_validated_admin(db, username=admin_username)
         db_user = await self.get_validated_user(db, username, admin)
@@ -157,7 +157,7 @@ class UserOperator(BaseOperator):
         return user
 
     async def get_user_usage(
-        self, db: Session, username: str, admin: Admin, start: str = "", end: str = ""
+        self, db: AsyncSession, username: str, admin: Admin, start: str = "", end: str = ""
     ) -> UserUsagesResponse:
         start, end = self.validate_dates(start, end)
         db_user: User = await self.get_validated_user(db, username, admin)
@@ -168,7 +168,7 @@ class UserOperator(BaseOperator):
 
     async def get_users(
         self,
-        db: Session,
+        db: AsyncSession,
         admin: Admin,
         offset: int = None,
         limit: int = None,
@@ -204,7 +204,7 @@ class UserOperator(BaseOperator):
 
     async def get_users_usage(
         self,
-        db: Session,
+        db: AsyncSession,
         admin: Admin,
         start: str = "",
         end: str = "",
@@ -225,7 +225,7 @@ class UserOperator(BaseOperator):
             logger.info(f'User "{user}" deleted by admin "{by}"')
 
     async def get_expired_users(
-        self, db: Session, admin: Admin, expired_after: dt | None = None, expired_before: dt | None = None
+        self, db: AsyncSession, admin: Admin, expired_after: dt | None = None, expired_before: dt | None = None
     ) -> list[str]:
         """
         Get users who have expired within the specified date range.
@@ -245,7 +245,7 @@ class UserOperator(BaseOperator):
         return await get_expired_users(db, expired_after, expired_before, id)
 
     async def delete_expired_users(
-        self, db: Session, admin: Admin, expired_after: dt | None = None, expired_before: dt | None = None
+        self, db: AsyncSession, admin: Admin, expired_after: dt | None = None, expired_before: dt | None = None
     ) -> RemoveUsersResponse:
         """
         Delete users who have expired within the specified date range.

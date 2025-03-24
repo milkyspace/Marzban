@@ -5,7 +5,7 @@ from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from . import BaseOperator
-from app.db import Session
+from app.db import AsyncSession
 from app.db.models import User
 from app.db.crud import update_user_sub, get_user_usages
 from app.models.user import UserResponse
@@ -121,7 +121,7 @@ class SubscriptionOperator(BaseOperator):
             "subscription-userinfo": "; ".join(f"{key}={val}" for key, val in user_info.items()),
         }
 
-    async def fetch_config(self, db: Session, token: str, client_type: str) -> tuple[str, str, User]:
+    async def fetch_config(self, db: AsyncSession, token: str, client_type: str) -> tuple[str, str, User]:
         db_user: User = await self.get_validated_sub(db, token=token)
 
         # Get client configuration
@@ -140,7 +140,7 @@ class SubscriptionOperator(BaseOperator):
 
     async def user_subscription(
         self,
-        db: Session,
+        db: AsyncSession,
         token: str,
         accept_header: str = "",
         user_agent: str = "",
@@ -168,7 +168,7 @@ class SubscriptionOperator(BaseOperator):
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
     async def user_subscription_with_client_type(
-        self, db: Session, token: str, client_type: str, request_url: str = ""
+        self, db: AsyncSession, token: str, client_type: str, request_url: str = ""
     ):
         """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
         conf, media_type, db_user = await self.fetch_config(db, token=token, client_type=client_type)
@@ -178,11 +178,11 @@ class SubscriptionOperator(BaseOperator):
 
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
-    async def user_subscription_info(self, db: Session, token: str) -> UserResponse:
+    async def user_subscription_info(self, db: AsyncSession, token: str) -> UserResponse:
         """Retrieves detailed information about the user's subscription."""
         return await self.get_validated_sub(db, token=token)
 
-    async def user_get_usage(self, db: Session, token: str, start: str = "", end: str = ""):
+    async def user_get_usage(self, db: AsyncSession, token: str, start: str = "", end: str = ""):
         """Fetches the usage statistics for the user within a specified date range."""
         start, end = self.validate_dates(start, end)
 

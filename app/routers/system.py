@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app import backend
-from app.db import Session, get_db
+from app.db import AsyncSession, get_db
 from app.models.admin import Admin
 from app.models.system import SystemStats
 from .authentication import get_current
@@ -15,7 +15,7 @@ router = APIRouter(tags=["System"], prefix="/api", responses={401: responses._40
 
 
 @router.get("/system", response_model=SystemStats)
-async def get_system_stats(db: Session = Depends(get_db), admin: Admin = Depends(get_current)):
+async def get_system_stats(db: AsyncSession = Depends(get_db), admin: Admin = Depends(get_current)):
     """Fetch system stats including memory, CPU, and user metrics."""
     return await system_operator.get_system_stats(db, admin=admin)
 

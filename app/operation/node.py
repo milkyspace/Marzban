@@ -1,6 +1,5 @@
 import asyncio
 
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from GozargahNodeBridge import GozargahNode, NodeAPIError
 
@@ -8,6 +7,7 @@ from app.operation import BaseOperator
 from app.models.node import NodeCreate, NodeResponse, NodeSettings, NodesUsageResponse, NodeModify, NodeStats
 from app.models.admin import Admin
 from app.db.models import Node, NodeStatus
+from app.db import AsyncSession
 from app.db.crud import (
     create_node,
     get_node_by_id,
@@ -31,7 +31,7 @@ class NodeOperator(BaseOperator):
     async def get_node_settings(self) -> NodeSettings:
         return NodeSettings(certificate=(await get_tls()).certificate)
 
-    async def get_db_nodes(self, db: Session, offset: int | None, limit: int | None) -> list[NodeResponse]:
+    async def get_db_nodes(self, db: AsyncSession, offset: int | None, limit: int | None) -> list[NodeResponse]:
         return await get_nodes(db=db, offset=offset, limit=limit)
 
     @staticmethod
@@ -74,7 +74,7 @@ class NodeOperator(BaseOperator):
 
                 await update_node_status(db=db, dbnode=db_node, status=NodeStatus.error, message=e.detail)
 
-    async def add_node(self, db: Session, new_node: NodeCreate, admin: Admin) -> NodeResponse:
+    async def add_node(self, db: AsyncSession, new_node: NodeCreate, admin: Admin) -> NodeResponse:
         try:
             db_node = await create_node(db, new_node)
         except IntegrityError:
@@ -89,7 +89,7 @@ class NodeOperator(BaseOperator):
 
         return NodeResponse.model_validate(db_node)
 
-    async def modify_node(self, db: Session, node_id: Node, modified_node: NodeModify, admin: Admin) -> Node:
+    async def modify_node(self, db: AsyncSession, node_id: Node, modified_node: NodeModify, admin: Admin) -> Node:
         db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
         try:
             db_node = await update_node(db, db_node, modified_node)
@@ -107,7 +107,7 @@ class NodeOperator(BaseOperator):
 
         return db_node
 
-    async def remove_node(self, db: Session, node_id: Node, admin: Admin) -> None:
+    async def remove_node(self, db: AsyncSession, node_id: Node, admin: Admin) -> None:
         db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
 
         await node_manager.remove_node(db_node.id)
@@ -119,12 +119,12 @@ class NodeOperator(BaseOperator):
         asyncio.create_task(self.connect_node(node_id))
         logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
 
-    async def restart_all_node(self, db: Session, admin: Admin) -> None:
+    async def restart_all_node(self, db: AsyncSession, admin: Admin) -> None:
         for db_node in await get_nodes(db=db, enabled=True):
             await asyncio.create_task(self.connect_node(db_node.id))
         logger.info(f'All Node\'s restarted by admin "{admin.username}"')
 
-    async def get_usage(self, db: Session, start: str = "", end: str = "") -> NodesUsageResponse:
+    async def get_usage(self, db: AsyncSession, start: str = "", end: str = "") -> NodesUsageResponse:
         start, end = self.validate_dates(start, end)
         usages = await get_nodes_usage(db, start, end)
 
@@ -189,7 +189,7 @@ class NodeOperator(BaseOperator):
             logger.error(f"Error getting system stats for node {node_id}: {e}")
             return None
 
-    async def get_user_online_stats_by_node(self, db: Session, node_id: Node, username: str) -> dict[int, int]:
+    async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
         db_user = get_user(db, username=username)
         if db_user is None:
             self.raise_error(message="User not found", code=404)
@@ -209,7 +209,9 @@ class NodeOperator(BaseOperator):
 
         return {node_id: stats.value}
 
-    async def get_user_ip_list_by_node(self, db: Session, node_id: Node, username: str) -> dict[int, dict[str, int]]:
+    async def get_user_ip_list_by_node(
+        self, db: AsyncSession, node_id: Node, username: str
+    ) -> dict[int, dict[str, int]]:
         db_user = get_user(db, username=username)
         if db_user is None:
             self.raise_error(message="User not found", code=404)
@@ -229,7 +231,7 @@ class NodeOperator(BaseOperator):
 
         return {node_id: stats.ips}
 
-    async def sync_node_users(self, db: Session, node_id: int, flush_users: bool = False) -> NodeResponse:
+    async def sync_node_users(self, db: AsyncSession, node_id: int, flush_users: bool = False) -> NodeResponse:
         db_node = await self.get_validated_node(db, node_id=node_id)
 
         if db_node.status != NodeStatus.connected:

@@ -4,7 +4,7 @@ import commentjson
 from fastapi import APIRouter, Depends, HTTPException
 
 from app import backend
-from app.db import Session, get_db
+from app.db import AsyncSession, get_db
 from app.models.admin import Admin
 from app.utils import responses
 from .authentication import check_sudo_admin
@@ -29,7 +29,7 @@ async def get_core_config(_: Admin = Depends(check_sudo_admin)) -> dict:
 
 @router.put("", responses={403: responses._403})
 async def modify_core_config(
-    payload: dict, db: Session = Depends(get_db), admin: Admin = Depends(check_sudo_admin)
+    payload: dict, db: AsyncSession = Depends(get_db), admin: Admin = Depends(check_sudo_admin)
 ) -> dict:
     """Modify the core configuration and restart the core."""
     try:
