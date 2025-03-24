@@ -605,7 +605,7 @@ async def reset_user_data_usage(db: AsyncSession, db_user: User) -> User:
     if db_user.next_plan:
         await db.delete(db_user.next_plan)
         db_user.next_plan = None
-    
+
     await db.commit()
     return await get_user(db, username)
 
@@ -948,6 +948,10 @@ async def get_tls_certificate(db: AsyncSession) -> TLS:
     return (await db.execute(select(TLS))).scalar_one_or_none()
 
 
+def get_admin_queryset() -> Query:
+    return select(Admin).options(selectinload(Admin.usage_logs))
+
+
 async def get_admin(db: AsyncSession, username: str) -> Admin:
     """
     Retrieves an admin by username.
@@ -959,7 +963,7 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
+    return (await db.execute(get_admin_queryset().where(Admin.username == username))).unique().scalar_one_or_none()
 
 
 async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
@@ -976,8 +980,7 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
     db_admin = Admin(**admin.model_dump(exclude={"password"}), hashed_password=admin.hashed_password)
     db.add(db_admin)
     await db.commit()
-    await db.refresh(db_admin)
-    return db_admin
+    return await get_admin(db, db_admin.username)
 
 
 async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminModify) -> Admin:
@@ -1013,8 +1016,7 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.profile_title = modified_admin.profile_title
 
     await db.commit()
-    await db.refresh(db_admin)
-    return db_admin
+    return await get_admin(db, db_admin.username)
 
 
 async def partial_update_admin(db: AsyncSession, dbadmin: Admin, modified_admin: AdminPartialModify) -> Admin:
@@ -1050,11 +1052,10 @@ async def partial_update_admin(db: AsyncSession, dbadmin: Admin, modified_admin:
         dbadmin.profile_title = modified_admin.profile_title
 
     await db.commit()
-    await db.refresh(dbadmin)
-    return dbadmin
+    return await get_admin(db, dbadmin.username)
 
 
-async def remove_admin(db: AsyncSession, dbadmin: Admin) -> Admin:
+async def remove_admin(db: AsyncSession, dbadmin: Admin)  -> None:
     """
     Removes an admin from the database.
 
@@ -1067,7 +1068,6 @@ async def remove_admin(db: AsyncSession, dbadmin: Admin) -> Admin:
     """
     await db.delete(dbadmin)
     await db.commit()
-    return dbadmin
 
 
 async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
@@ -1081,7 +1081,7 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(select(Admin).where(Admin.id == id))).unique().scalar_one_or_none()
+    return (await db.execute(get_admin_queryset().where(Admin.id == id))).unique().scalar_one_or_none()
 
 
 async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
@@ -1095,7 +1095,7 @@ async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id))).scalar_one_or_none()
+    return (await db.execute(get_admin_queryset().where(Admin.telegram_id == telegram_id))).unique().scalar_one_or_none()
 
 
 async def get_admins(
@@ -1113,7 +1113,7 @@ async def get_admins(
     Returns:
         List[Admin]: A list of admin objects.
     """
-    query = select(Admin)
+    query = get_admin_queryset()
     if username:
         query = query.where(Admin.username.ilike(f"%{username}%"))
     if offset:
@@ -1140,8 +1140,7 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> int:
     db_admin.users_usage = 0
 
     await db.commit()
-    await db.refresh(db_admin)
-    return db_admin
+    return await get_admin(db, db_admin.username)
 
 
 async def create_user_template(db: AsyncSession, user_template: UserTemplateCreate) -> UserTemplate:
