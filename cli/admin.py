@@ -262,15 +262,15 @@ class AdminContent(Static):
         self.table.columns.clear()
         columns = (
             # "Id",
-                "Username",
-                "Usage",
-                "Reseted usage",
-                "Users Usage",
-                "Is sudo",
-                "Is disabled",
-                "Created at",
-                "Telegram ID",
-                "Discord Webhook",
+            "Username",
+            "Usage",
+            "Reseted usage",
+            "Users Usage",
+            "Is sudo",
+            "Is disabled",
+            "Created at",
+            "Telegram ID",
+            "Discord Webhook",
         )
         admins = await self.admin_operator.get_admins(self.db, offset=0, limit=10)
         if not admins:
@@ -288,13 +288,13 @@ class AdminContent(Static):
                 admin.username,
                 usages[i],
                 reseted_usages[i],
-                    readable_size(admin.users_usage),
-                    "✔️" if admin.is_sudo else "✖️",
-                    "✔️" if admin.is_disabled else "✖️",
-                    utils.readable_datetime(admin.created_at),
-                    str(admin.telegram_id or "✖️"),
-                    str(admin.discord_webhook or "✖️"),
-                )
+                readable_size(admin.users_usage),
+                "✔️" if admin.is_sudo else "✖️",
+                "✔️" if admin.is_disabled else "✖️",
+                utils.readable_datetime(admin.created_at),
+                str(admin.telegram_id or "✖️"),
+                str(admin.discord_webhook or "✖️"),
+            )
             for i, admin in enumerate(admins)
         ]
         column_widths = [
@@ -328,17 +328,17 @@ class AdminContent(Static):
         self.app.push_screen(AdminModifyModale(self.db, self.admin_operator, admin, self._refresh_table))
 
     async def action_import_from_env(self):
-    try:
-        username, password = config("SUDO_USERNAME"), config("SUDO_PASSWORD")
-    except UndefinedValueError:
+        try:
+            username, password = config("SUDO_USERNAME"), config("SUDO_PASSWORD")
+        except UndefinedValueError:
             self.notify(
-            "Unable to get SUDO_USERNAME and/or SUDO_PASSWORD.\n"
+                "Unable to get SUDO_USERNAME and/or SUDO_PASSWORD.\n"
                 "Make sure you have set them in the env file or as environment variables.",
                 severity="error",
                 title="Error",
-        )
+            )
             return
-    if not (username and password):
+        if not (username and password):
             self.notify(
                 "Unable to retrieve username and password.\nMake sure both SUDO_USERNAME and SUDO_PASSWORD are set.",
                 severity="error",
