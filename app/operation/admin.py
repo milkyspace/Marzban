@@ -113,7 +113,8 @@ class AdminOperation(BaseOperator):
         db_admin = await reset_admin_usage(db, db_admin=db_admin)
         if self.operator_type != OperatorType.CLI:
             logger.info(f'Admin "{username}" usage has been reset by admin "{admin.username}"')
-            reseted_admin = AdminDetails.model_validate(db_admin)
-            asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
+
+        reseted_admin = AdminDetails.model_validate(db_admin)
+        asyncio.create_task(notification.admin_usage_reset(reseted_admin, admin.username))
 
         return AdminDetails.model_validate(db_admin)

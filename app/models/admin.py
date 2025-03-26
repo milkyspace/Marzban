@@ -72,6 +72,7 @@ class AdminModify(BaseModel):
 
 class AdminCreate(AdminModify):
     """Model for creating new admin accounts requiring username and password."""
+
     username: str
     password: str
 
