@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from app.utils.logger import get_logger
-from app.operation import BaseOperator
+from app.operation import BaseOperator, OperatorType
 from app.models.admin import Admin, AdminCreate, AdminModify
 from app.db import AsyncSession
 from app.db.models import Admin as DBAdmin
@@ -20,7 +20,7 @@ logger = get_logger("admin-operator")
 
 
 class AdminOperation(BaseOperator):
-    async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: Admin) -> Admin:
+    async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: Admin | None = None) -> Admin:
         """Create a new admin if the current admin has sudo privileges."""
         try:
             db_admin = await create_admin(db, new_admin)
@@ -28,7 +28,8 @@ class AdminOperation(BaseOperator):
             await db.rollback()
             self.raise_error(message="Admin already exists", code=409)
 
-        logger.info(f'New admin "{db_admin.username}" with id "{db_admin.id}" added by admin "{admin.username}"')
+        if self.operator_type != OperatorType.CLI:
+            logger.info(f'New admin "{db_admin.username}" with id "{db_admin.id}" added by admin "{admin.username}"')
         return db_admin
 
     async def modify_admin(
@@ -47,14 +48,17 @@ class AdminOperation(BaseOperator):
 
         return updated_admin
 
-    async def remove_admin(self, db: AsyncSession, username: str, current_admin: Admin):
+    async def remove_admin(self, db: AsyncSession, username: str, current_admin: Admin | None = None):
         """Remove an admin from the database."""
         db_admin = await self.get_validated_admin(db, username=username)
         if (db_admin.username == current_admin.username) and db_admin.is_sudo:
             self.raise_error(message="You're not allowed to delete sudo accounts. Use marzban-cli instead.", code=403)
 
         await remove_admin(db, db_admin)
-        logger.info(f'Admin "{db_admin.username}" with id "{db_admin.id}" deleted by admin "{current_admin.username}"')
+        if self.operator_type != OperatorType.CLI:
+            logger.info(
+                f'Admin "{db_admin.username}" with id "{db_admin.id}" deleted by admin "{current_admin.username}"'
+            )
 
     async def get_admins(
         self, db: AsyncSession, username: str | None = None, offset: int | None = None, limit: int | None = None
