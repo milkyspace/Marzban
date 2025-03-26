@@ -4,7 +4,11 @@
 ModalScreen {
   align: center middle;
 }
-
+.label {
+  height: 3;
+  content-align: center middle;
+  width: auto;
+}
 .modal-box-delete {
   width: 50%;
   height: 40%;
@@ -12,7 +16,7 @@ ModalScreen {
   padding-top: 2;
   align: center middle;
 }
-.modal-box-create {
+.modal-box-form {
   width: 50%;
   height: auto;
   border: solid white;
@@ -25,8 +29,18 @@ ModalScreen {
   margin: 1;
   padding: 1;
   position: relative;
+  height: auto;
 }
-#title {
+Button {
+  /* width: auto; */
+  /* height: auto; */
+  height: 3;
+  padding: 0 2;
+  margin: 0 1;
+  text-align: center;
+  /* font-size: 1; */
+}
+.title {
   margin-bottom: 1;
   margin-top: 1;
   margin-left: 1;
@@ -35,13 +49,13 @@ ModalScreen {
   text-align: center;
 }
 
-Button {
-  margin: 0 1;
-  padding: 1;
-}
 .input-container {
   margin: 1;
   padding: 1;
   max-height: 70%;
   overflow-y: auto;
+}
+.switch-container {
+  height: auto;
+  width: auto;
 }

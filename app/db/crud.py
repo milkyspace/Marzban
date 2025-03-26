@@ -1099,9 +1099,6 @@ async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
     Args:
         db (AsyncSession): Database session.
         dbadmin (Admin): The admin object to be removed.
-
-    Returns:
-        Admin: The removed admin object.
     """
     await db.delete(dbadmin)
     await db.commit()

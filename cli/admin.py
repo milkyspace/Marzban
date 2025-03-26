@@ -2,8 +2,6 @@ import asyncio
 from typing import Union
 import typer
 from decouple import UndefinedValueError, config
-from rich.console import Console
-from rich.panel import Panel
 from sqlalchemy import func, select, update
 from app.db import GetDB, AsyncSession
 from app.db.base import get_db
@@ -13,18 +11,18 @@ from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils.system import readable_size
 from textual.app import ComposeResult
-from textual.widgets import DataTable, Button, Static
+from textual.widgets import DataTable, Button, Static, Input, Switch
 from . import utils
 from textual.coordinate import Coordinate
 from rich.text import Text
-from textual.screen import ModalScreen
 from textual.containers import Horizontal, Container, Vertical
-from textual.widgets import Input
+from cli import BaseModal
+from pydantic import ValidationError
 
 app = typer.Typer(no_args_is_help=True)
 
 
-class AdminDelete(ModalScreen):
+class AdminDelete(BaseModal):
     def __init__(
         self, db: AsyncSession, operation: AdminOperation, username: str, on_close: callable, *args, **kwargs
     ) -> None:
@@ -34,48 +32,31 @@ class AdminDelete(ModalScreen):
         self.username = username
         self.on_close = on_close
 
+    async def on_mount(self) -> None:
+        """Ensure the first button is focused."""
+        yes_button = self.query_one("#no")
+        self.set_focus(yes_button)
+
     def compose(self) -> ComposeResult:
         with Container(classes="modal-box-delete"):
-            yield Static("Are you sure about deleting this admin?")
+            yield Static("Are you sure about deleting this admin?", classes="title")
             yield Horizontal(
                 Button("Yes", id="yes", variant="success"),
                 Button("No", id="no", variant="error"),
                 classes="button-container",
             )
 
-    async def key_left(self) -> None:
-        """Move focus left on arrow key press."""
-        self.app.action_focus_previous()
-
-    async def key_right(self) -> None:
-        """Move focus right on arrow key press."""
-        self.app.action_focus_next()
-
-    async def key_down(self) -> None:
-        """Move focus down on arrow key press."""
-        self.app.action_focus_next()
-
-    async def key_up(self) -> None:
-        """Move focus up on arrow key press."""
-        self.app.action_focus_previous()
-
-    async def key_escape(self) -> None:
-        """Close modal when ESC is pressed."""
-        self.app.pop_screen()
-
-    async def on_mount(self) -> None:
-        """Ensure the first button is focused."""
-        yes_button = self.query_one("#no")
-        self.set_focus(yes_button)
-
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "yes":
-            await self.operation.remove_admin(self.db, self.username)
-            self.on_close()
+            try:
+                await self.operation.remove_admin(self.db, self.username)
+                self.on_close()
+            except ValueError as e:
+                self.notify(str(e), severity="error", title="Error")
         await self.key_escape()
 
 
-class AdminCreateModale(ModalScreen):
+class AdminCreateModale(BaseModal):
     def __init__(self, db: AsyncSession, operation: AdminOperation, on_close: callable, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.db = db
@@ -83,14 +64,19 @@ class AdminCreateModale(ModalScreen):
         self.on_close = on_close
 
     def compose(self) -> ComposeResult:
-        with Container(classes="modal-box-create"):
-            yield Static("Create a new admin", id="title")
+        with Container(classes="modal-box-form"):
+            yield Static("Create a new admin", classes="title")
             yield Vertical(
                 Input(placeholder="Username", id="username"),
                 Input(placeholder="Password", password=True, id="password"),
                 Input(placeholder="Confirm Password", password=True, id="confirm_password"),
-                Input(placeholder="Telegram ID", id="telegram_id"),
+                Input(placeholder="Telegram ID", id="telegram_id", type="integer"),
                 Input(placeholder="Discord Webhook", id="discord_webhook"),
+                Horizontal(
+                    Static("Is sudo:     ", classes="label"),
+                    Switch(animate=False, id="is_sudo"),
+                    classes="switch-container",
+                ),
                 classes="input-container",
             )
             yield Horizontal(
@@ -99,56 +85,140 @@ class AdminCreateModale(ModalScreen):
                 classes="button-container",
             )
 
-    async def key_left(self) -> None:
-        """Move focus left on arrow key press."""
-        self.app.action_focus_previous()
-
-    async def key_right(self) -> None:
-        """Move focus right on arrow key press."""
-        self.app.action_focus_next()
-
-    async def key_down(self) -> None:
-        """Move focus down on arrow key press."""
-        self.app.action_focus_next()
-
-    async def key_up(self) -> None:
-        """Move focus up on arrow key press."""
-        self.app.action_focus_previous()
-
-    async def key_escape(self) -> None:
-        """Close modal when ESC is pressed."""
-        self.app.pop_screen()
-
     async def on_mount(self) -> None:
         """Ensure the first button is focused."""
         username_input = self.query_one("#username")
         self.set_focus(username_input)
+
+    async def key_enter(self) -> None:
+        """Create admin when Enter is pressed."""
+        await self.on_button_pressed(Button.Pressed(self.query_one("#create")))
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create":
             username = self.query_one("#username").value.strip()
             password = self.query_one("#password").value.strip()
             confirm_password = self.query_one("#confirm_password").value.strip()
-            telegram_id = self.query_one("#telegram_id").value.strip()
-            discord_webhook = self.query_one("#discord_webhook").value.strip()
+            telegram_id = self.query_one("#telegram_id").value or None
+            discord_webhook = self.query_one("#discord_webhook").value.strip() or None
+            is_sudo = self.query_one("#is_sudo").value
             if password != confirm_password:
-                self.notify("Password and confirm password do not match")
+                self.notify("Password and confirm password do not match", severity="error", title="Error")
                 return
             try:
                 await self.operation.create_admin(
                     self.db,
                     AdminCreate(
-                        username=username, password=password, telegram_id=telegram_id, discord_webhook=discord_webhook
+                        username=username,
+                        password=password,
+                        telegram_id=telegram_id,
+                        discord_webhook=discord_webhook,
+                        is_sudo=is_sudo,
                     ),
                 )
-                self.notify("Admin created successfully")
-                self.dismiss()
+                self.notify("Admin created successfully", severity="success", title="Success")
+                await self.key_escape()
                 self.on_close()
+            except ValidationError as e:
+                for error in e.errors():
+                    for err in error["msg"].split(";"):
+                        self.notify(
+                            err.strip(),
+                            severity="error",
+                            title=f"Error: {error['loc'][0].replace('_', ' ').capitalize()}",
+                        )
             except ValueError as e:
-                for error in str(e).split(";"):
-                    self.notify(error.strip())
+                self.notify(str(e), severity="error", title="Error")
         elif event.button.id == "cancel":
-            self.dismiss()
+            await self.key_escape()
+
+
+class AdminModifyModale(BaseModal):
+    def __init__(
+        self, db: AsyncSession, operation: AdminOperation, admin: Admin, on_close: callable, *args, **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.db = db
+        self.operation = operation
+        self.admin = admin
+        self.on_close = on_close
+
+    def compose(self) -> ComposeResult:
+        with Container(classes="modal-box-form"):
+            yield Static("Modify admin", classes="title")
+            yield Vertical(
+                Input(placeholder="Password", password=True, id="password"),
+                Input(placeholder="Confirm Password", password=True, id="confirm_password"),
+                Input(placeholder="Telegram ID", id="telegram_id", type="integer"),
+                Input(placeholder="Discord Webhook", id="discord_webhook"),
+                Horizontal(
+                    Static("Is sudo:     ", classes="label"),
+                    Switch(animate=False, id="is_sudo"),
+                    Static("Is disabled: ", classes="label"),
+                    Switch(animate=False, id="is_disabled"),
+                    classes="switch-container",
+                ),
+                classes="input-container",
+            )
+            yield Horizontal(
+                Button("Save", id="save", variant="success"),
+                Button("Cancel", id="cancel", variant="error"),
+                classes="button-container",
+            )
+
+    async def on_mount(self) -> None:
+        if self.admin.telegram_id:
+            self.query_one("#telegram_id").value = str(self.admin.telegram_id)
+        if self.admin.discord_webhook:
+            self.query_one("#discord_webhook").value = self.admin.discord_webhook
+        self.query_one("#is_sudo").value = self.admin.is_sudo
+        self.query_one("#is_disabled").value = self.admin.is_disabled
+        password_input = self.query_one("#password")
+        self.set_focus(password_input)
+
+    async def key_enter(self) -> None:
+        """Create admin when Enter is pressed."""
+        await self.on_button_pressed(Button.Pressed(self.query_one("#save")))
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save":
+            password = self.query_one("#password").value.strip()
+            confirm_password = self.query_one("#confirm_password").value.strip()
+            telegram_id = self.query_one("#telegram_id").value or None
+            discord_webhook = self.query_one("#discord_webhook").value.strip() or None
+            is_sudo = self.query_one("#is_sudo").value
+            is_disabled = self.query_one("#is_disabled").value
+
+            if password != confirm_password:
+                self.notify("Password and confirm password do not match", severity="error", title="Error")
+                return
+            try:
+                await self.operation.modify_admin(
+                    self.db,
+                    self.admin.username,
+                    AdminPartialModify(
+                        password=password,
+                        telegram_id=telegram_id,
+                        discord_webhook=discord_webhook,
+                        is_sudo=is_sudo,
+                        is_disabled=is_disabled,
+                    ),
+                )
+                self.notify("Admin modified successfully", severity="success", title="Success")
+                await self.key_escape()
+                self.on_close()
+            except ValidationError as e:
+                for error in e.errors():
+                    for err in error["msg"].split(";"):
+                        self.notify(
+                            err.strip(),
+                            severity="error",
+                            title=f"Error: {error['loc'][0].replace('_', ' ').capitalize()}",
+                        )
+            except ValueError as e:
+                self.notify(str(e), severity="error", title="Error")
+        elif event.button.id == "cancel":
+            await self.key_escape()
 
 
 class AdminContent(Static):
@@ -236,10 +306,12 @@ class AdminContent(Static):
             i += 1
             self.table.add_row(*centered_row, key=adnin.username, label=label)
 
+    @property
+    def selected_admin(self):
+        return self.table.coordinate_to_cell_key(Coordinate(self.table.cursor_row, 0)).row_key.value
+
     async def action_delete_admin(self):
-        index = self.table.cursor_row
-        selected_admin = self.table.coordinate_to_cell_key(Coordinate(index, 0)).row_key.value
-        self.app.push_screen(AdminDelete(self.db, self.admin_operator, selected_admin, self._refresh_table))
+        self.app.push_screen(AdminDelete(self.db, self.admin_operator, self.selected_admin, self._refresh_table))
 
     def _refresh_table(self):
         self.run_worker(self.admins_list)
@@ -248,21 +320,14 @@ class AdminContent(Static):
         self.app.push_screen(AdminCreateModale(self.db, self.admin_operator, self._refresh_table))
 
     async def action_modify_admin(self):
-        pass
+        admin = await self.admin_operator.get_validated_admin(self.db, username=self.selected_admin)
+        self.app.push_screen(AdminModifyModale(self.db, self.admin_operator, admin, self._refresh_table))
 
     async def action_import_from_env(self):
         pass
 
 
 ## ==================================================================
-def validate_telegram_id(value: Union[int, str]) -> Union[int, None]:
-    if not value:
-        return 0
-    if not isinstance(value, int) and not value.isdigit():
-        raise typer.BadParameter("Telegram ID must be an integer.")
-    if int(value) < 0:
-        raise typer.BadParameter("Telegram ID must be a positive integer.")
-    return value
 
 
 def validate_discord_webhook(value: str) -> Union[str, None]:
@@ -283,143 +348,6 @@ async def calculate_admin_reseted_usage(admin_id: int) -> str:
     async with GetDB() as db:
         usage = await db.execute(select(func.sum(User.reseted_usage)).filter_by(admin_id=admin_id))
         return readable_size(int(usage.scalar() or 0))
-
-
-async def _delete_admin(
-    username: str,
-    yes_to_all: bool = False,
-):
-    """
-    Deletes the specified admin
-
-    Confirmations can be skipped using `--yes/-y` option.
-    """
-    async with GetDB() as db:
-        try:
-            admin = await admin_operator.get_validated_admin(db, username=username)
-            if yes_to_all or typer.confirm(f'Are you sure about deleting "{username}"?', default=False):
-                await admin_operator.remove_admin(db, username, admin)
-                utils.success(f'"{username}" deleted successfully.')
-            else:
-                utils.error("Operation aborted!")
-        except ValueError as e:
-            utils.error(str(e))
-
-
-@app.command(name="delete")
-def delete_admin(
-    username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True),
-    yes_to_all: bool = typer.Option(False, *utils.FLAGS["yes_to_all"], help="Skips confirmations"),
-):
-    """
-    Deletes the specified admin
-
-    Confirmations can be skipped using `--yes/-y` option.
-    """
-    asyncio.run(_delete_admin(username, yes_to_all))
-
-
-async def _create_admin(
-    username: str,
-    is_sudo: bool,
-    password: str,
-    telegram_id: str,
-    discord_webhook: str,
-):
-    """
-    Creates an admin
-
-    Password can also be set using the `MARZBAN_ADMIN_PASSWORD` environment variable for non-interactive usages.
-    """
-    async with GetDB() as db:
-        try:
-            await admin_operator.create_admin(
-                db,
-                AdminCreate(
-                    username=username,
-                    password=password,
-                    is_sudo=is_sudo,
-                    telegram_id=telegram_id,
-                    discord_webhook=discord_webhook,
-                ),
-            )
-            utils.success(f'Admin "{username}" created successfully.')
-        except ValueError as e:
-            utils.error(str(e))
-
-
-@app.command(name="create")
-def create_admin(
-    username: str = typer.Option(..., *utils.FLAGS["username"], show_default=False, prompt=True),
-    is_sudo: bool = typer.Option(False, *utils.FLAGS["is_sudo"], prompt=True),
-    password: str = typer.Option(
-        ..., prompt=True, confirmation_prompt=True, hide_input=True, hidden=True, envvar=utils.PASSWORD_ENVIRON_NAME
-    ),
-    telegram_id: str = typer.Option(
-        "", *utils.FLAGS["telegram_id"], prompt="Telegram ID", show_default=False, callback=validate_telegram_id
-    ),
-    discord_webhook: str = typer.Option(
-        "", *utils.FLAGS["discord_webhook"], prompt=True, show_default=False, callback=validate_discord_webhook
-    ),
-):
-    """
-    Creates an admin
-
-    Password can also be set using the `MARZBAN_ADMIN_PASSWORD` environment variable for non-interactive usages.
-    """
-    asyncio.run(_create_admin(username, is_sudo, password, telegram_id, discord_webhook))
-
-
-async def _update_admin(username: str):
-    """
-    Updates the specified admin
-
-    NOTE: This command CAN NOT be used non-interactively.
-    """
-
-    async def _get_modify_model(admin: Admin):
-        Console().print(Panel(f'Editing "{username}". Just press "Enter" to leave each field unchanged.'))
-
-        is_sudo: bool = typer.confirm("Is sudo", default=admin.is_sudo)
-        is_disabled: bool = typer.confirm("Is disabled", default=admin.is_disabled)
-        new_password: Union[str, None] = (
-            typer.prompt("New password", default="", show_default=False, confirmation_prompt=True, hide_input=True)
-            or None
-        )
-
-        telegram_id: str = typer.prompt("Telegram ID (Enter 0 to clear current value)", default=admin.telegram_id or "")
-        telegram_id = validate_telegram_id(telegram_id)
-
-        discord_webhook: str = typer.prompt(
-            "Discord webhook (Enter 0 to clear current value)", default=admin.discord_webhook or ""
-        )
-        discord_webhook = validate_discord_webhook(discord_webhook)
-
-        return AdminPartialModify(
-            is_sudo=is_sudo,
-            password=new_password,
-            telegram_id=telegram_id,
-            discord_webhook=discord_webhook,
-            is_disabled=is_disabled,
-        )
-
-    async with GetDB() as db:
-        try:
-            admin = await admin_operator.get_validated_admin(db, username=username)
-            await admin_operator.modify_admin(db, username, _get_modify_model(admin), admin)
-            utils.success(f'Admin "{username}" updated successfully.')
-        except ValueError as e:
-            utils.error(str(e))
-
-
-@app.command(name="update")
-def update_admin(username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True, show_default=False)):
-    """
-    Updates the specified admin
-
-    NOTE: This command CAN NOT be used non-interactively.
-    """
-    asyncio.run(_update_admin(username))
 
 
 async def _import_from_env(yes_to_all: bool = False):
