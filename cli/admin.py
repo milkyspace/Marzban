@@ -91,7 +91,8 @@ class AdminCreateModale(BaseModal):
 
     async def key_enter(self) -> None:
         """Create admin when Enter is pressed."""
-        await self.on_button_pressed(Button.Pressed(self.query_one("#create")))
+        if not self.query_one("#is_sudo").has_focus:
+            await self.on_button_pressed(Button.Pressed(self.query_one("#create")))
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create":
@@ -177,8 +178,9 @@ class AdminModifyModale(BaseModal):
         self.set_focus(password_input)
 
     async def key_enter(self) -> None:
-        """Create admin when Enter is pressed."""
-        await self.on_button_pressed(Button.Pressed(self.query_one("#save")))
+        """Save admin when Enter is pressed."""
+        if not self.query_one("#is_disabled").has_focus and not self.query_one("#is_sudo").has_focus:
+            await self.on_button_pressed(Button.Pressed(self.query_one("#save")))
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save":
@@ -371,3 +373,6 @@ class AdminContent(Static):
     async def calculate_admin_reseted_usage(self, admin_id: int) -> str:
         usage = await self.db.execute(select(func.sum(User.reseted_usage)).filter_by(admin_id=admin_id))
         return readable_size(int(usage.scalar() or 0))
+
+    async def key_enter(self) -> None:
+        await self.action_modify_admin()
