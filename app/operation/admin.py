@@ -14,7 +14,6 @@ from app.db.crud import (
     disable_all_active_users,
     activate_all_disabled_users,
     reset_admin_usage,
-    partial_update_admin,
 )
 from app import notification
 
@@ -22,9 +21,7 @@ logger = get_logger("admin-operator")
 
 
 class AdminOperation(BaseOperator):
-    async def create_admin(
-        self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails | None = None
-    ) -> AdminDetails:
+    async def create_admin(self, db: AsyncSession, new_admin: AdminCreate, admin: AdminDetails) -> AdminDetails:
         """Create a new admin if the current admin has sudo privileges."""
         try:
             db_admin = await create_admin(db, new_admin)
@@ -34,8 +31,8 @@ class AdminOperation(BaseOperator):
 
         if self.operator_type != OperatorType.CLI:
             logger.info(f'New admin "{db_admin.username}" with id "{db_admin.id}" added by admin "{admin.username}"')
-            new_admin = AdminDetails.model_validate(db_admin)
-            asyncio.create_task(notification.create_admin(new_admin, admin.username))
+        new_admin = AdminDetails.model_validate(db_admin)
+        asyncio.create_task(notification.create_admin(new_admin, admin.username))
 
         return db_admin
 
@@ -49,18 +46,15 @@ class AdminOperation(BaseOperator):
                 message="You're not allowed to edit another sudoer's account. Use marzban-cli instead.", code=403
             )
 
-        if self.operator_type == OperatorType.CLI:
-            db_admin = await partial_update_admin(db, db_admin, modified_admin)
-        else:
-            db_admin = await update_admin(db, db_admin, modified_admin)
+        db_admin = await update_admin(db, db_admin, modified_admin)
 
         if self.operator_type != OperatorType.CLI:
-            modified_admin = AdminDetails.model_validate(db_admin)
-            asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
             logger.info(
                 f'Admin "{db_admin.username}" with id "{db_admin.id}" modified by admin "{current_admin.username}"'
             )
 
+        modified_admin = AdminDetails.model_validate(db_admin)
+        asyncio.create_task(notification.modify_admin(modified_admin, current_admin.username))
         return modified_admin
 
     async def remove_admin(self, db: AsyncSession, username: str, current_admin: AdminDetails | None = None):
