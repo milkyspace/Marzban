@@ -20,7 +20,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
 from sqlalchemy.ext.compiler import compiles
 from app.db.base import Base
-from app.models.user import ReminderType, UserDataLimitResetStrategy, UserStatus
 
 
 class CaseSensitiveString(String):
@@ -73,7 +72,7 @@ class Admin(Base):
     discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     users_usage: Mapped[int] = mapped_column(BigInteger, default=0)
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
-    usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(back_populates="admin")
+    usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(back_populates="admin", lazy="selectin")
     sub_template: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     sub_domain: Mapped[Optional[str]] = mapped_column(String(256), default=None)
     profile_title: Mapped[Optional[str]] = mapped_column(String(512), default=None)
@@ -104,6 +103,27 @@ class AdminUsageLogs(Base):
     admin: Mapped["Admin"] = relationship(back_populates="usage_logs")
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
     reset_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class ReminderType(str, Enum):
+    expiration_date = "expiration_date"
+    data_usage = "data_usage"
+
+
+class UserStatus(str, Enum):
+    active = "active"
+    disabled = "disabled"
+    limited = "limited"
+    expired = "expired"
+    on_hold = "on_hold"
+
+
+class UserDataLimitResetStrategy(str, Enum):
+    no_reset = "no_reset"
+    day = "day"
+    week = "week"
+    month = "month"
+    year = "year"
 
 
 class User(Base):
@@ -224,8 +244,7 @@ class UserTemplate(Base):
 
     next_plans: Mapped[List["NextPlan"]] = relationship(back_populates="user_template", cascade="all, delete-orphan")
     groups: Mapped[List["Group"]] = relationship(
-        secondary=template_group_association,
-        back_populates="templates",
+        secondary=template_group_association, back_populates="templates", lazy="selectin"
     )
 
     @property
@@ -388,7 +407,9 @@ class Node(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
-    user_usages: Mapped[List["NodeUserUsage"]] = relationship(back_populates="node", cascade="all, delete-orphan")
+    user_usages: Mapped[List["NodeUserUsage"]] = relationship(
+        back_populates="node", cascade="all, delete-orphan", lazy="selectin"
+    )
     usages: Mapped[List["NodeUsage"]] = relationship(back_populates="node", cascade="all, delete-orphan")
     usage_coefficient: Mapped[float] = mapped_column(Float, server_default=text("1.0"), default=1)
     node_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
@@ -449,10 +470,10 @@ class Group(Base):
 
     users: Mapped[List["User"]] = relationship(secondary=users_groups_association, back_populates="groups")
     inbounds: Mapped[List["ProxyInbound"]] = relationship(
-        secondary=inbounds_groups_association, back_populates="groups"
+        secondary=inbounds_groups_association, back_populates="groups", lazy="selectin"
     )
     templates: Mapped[List["UserTemplate"]] = relationship(
-        secondary=template_group_association, back_populates="groups"
+        secondary=template_group_association, back_populates="groups", lazy="selectin"
     )
 
     @property

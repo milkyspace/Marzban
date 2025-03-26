@@ -1,29 +1,14 @@
 import re
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.admin import Admin
+from .validators import NumericValidatorMixin, ListValidator
+from app.db.models import UserStatus, UserDataLimitResetStrategy
+from app.models.admin import AdminBaseInfo
 from app.models.proxy import ProxyTable
-
-
-USERNAME_REGEXP = re.compile(r"^(?=\w{3,32}\b)[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
-
-
-class ReminderType(str, Enum):
-    expiration_date = "expiration_date"
-    data_usage = "data_usage"
-
-
-class UserStatus(str, Enum):
-    active = "active"
-    disabled = "disabled"
-    limited = "limited"
-    expired = "expired"
-    on_hold = "on_hold"
 
 
 class UserStatusModify(str, Enum):
@@ -37,18 +22,10 @@ class UserStatusCreate(str, Enum):
     on_hold = "on_hold"
 
 
-class UserDataLimitResetStrategy(str, Enum):
-    no_reset = "no_reset"
-    day = "day"
-    week = "week"
-    month = "month"
-    year = "year"
-
-
 class NextPlanModel(BaseModel):
-    user_template_id: Optional[int] = None
-    data_limit: Optional[int] = None
-    expire: Optional[int] = None
+    user_template_id: int | None = None
+    data_limit: int | None = None
+    expire: int | None = None
     add_remaining_traffic: bool = False
     fire_on_either: bool = True
     model_config = ConfigDict(from_attributes=True)
@@ -57,45 +34,21 @@ class NextPlanModel(BaseModel):
 class User(BaseModel):
     proxy_settings: ProxyTable = Field(default_factory=ProxyTable)
     expire: datetime | int | None = Field(None, nullable=True)
-    data_limit: Optional[int] = Field(ge=0, default=None, description="data_limit can be 0 or greater")
-    data_limit_reset_strategy: UserDataLimitResetStrategy = UserDataLimitResetStrategy.no_reset
-    note: Optional[str] = Field(None, nullable=True)
-    sub_updated_at: Optional[datetime] = Field(None, nullable=True)
-    sub_last_user_agent: Optional[str] = Field(None, nullable=True)
-    online_at: Optional[datetime] = Field(None, nullable=True)
-    on_hold_expire_duration: Optional[int] = Field(None, nullable=True)
+    data_limit: int | None = Field(ge=0, default=None, description="data_limit can be 0 or greater")
+    data_limit_reset_strategy: UserDataLimitResetStrategy | None = None
+    note: str | None = Field(max_length=500, default=None)
+    sub_updated_at: datetime | None = Field(None, nullable=True)
+    sub_last_user_agent: str | None = Field(None, nullable=True)
+    online_at: datetime | None = Field(None, nullable=True)
+    on_hold_expire_duration: int | None = Field(None, nullable=True)
     on_hold_timeout: datetime | int | None = Field(None, nullable=True)
     group_ids: list[int] | None = Field(default_factory=list)
-    auto_delete_in_days: Optional[int] = Field(None, nullable=True)
+    auto_delete_in_days: int | None = Field(None, nullable=True)
 
-    next_plan: Optional[NextPlanModel] = Field(None, nullable=True)
+    next_plan: NextPlanModel | None = Field(None, nullable=True)
 
-    @field_validator("data_limit", mode="before")
-    def cast_to_int(cls, v):
-        if v is None:  # Allow None values
-            return v
-        if isinstance(v, float):  # Allow float to int conversion
-            return int(v)
-        if isinstance(v, int):  # Allow integers directly
-            return v
-        raise ValueError("data_limit must be an integer or a float, not a string")  # Reject strings
 
-    @field_validator("username", check_fields=False)
-    @classmethod
-    def validate_username(cls, v):
-        if not USERNAME_REGEXP.match(v):
-            raise ValueError(
-                "Username only can be 3 to 32 characters and contain a-z, 0-9, and underscores in between."
-            )
-        return v
-
-    @field_validator("note", check_fields=False)
-    @classmethod
-    def validate_note(cls, v):
-        if v and len(v) > 500:
-            raise ValueError("User's note can be a maximum of 500 character")
-        return v
-
+class UserWithValidator(User):
     @field_validator("on_hold_expire_duration")
     @classmethod
     def validate_timeout(cls, v):
@@ -118,13 +71,24 @@ class User(BaseModel):
         if value == 0 or isinstance(value, datetime) or value is None:
             return value
         elif isinstance(value, int):
-            return datetime.utcfromtimestamp(value)
+            return datetime.fromtimestamp(value, tz=timezone.utc)
         else:
             raise ValueError("expire can be datetime, timestamp or 0")
 
+    @field_validator("status", mode="before", check_fields=False)
+    def validate_status(cls, status, values):
+        on_hold_expire = values.data.get("on_hold_expire_duration")
+        expire = values.data.get("expire")
+        if status == UserStatusCreate.on_hold:
+            if on_hold_expire == 0 or on_hold_expire is None:
+                raise ValueError("User cannot be on hold without a valid on_hold_expire_duration.")
+            if expire:
+                raise ValueError("User cannot be on hold with specified expire.")
+        return status
 
-class UserCreate(User):
-    username: str
+
+class UserCreate(UserWithValidator):
+    username: str = Field(min_length=3, max_length=32)
     status: UserStatusCreate | None = None
     model_config = ConfigDict(
         json_schema_extra={
@@ -147,28 +111,26 @@ class UserCreate(User):
         }
     )
 
-    @field_validator("status", mode="before")
-    def validate_status(cls, status, values):
-        on_hold_expire = values.data.get("on_hold_expire_duration")
-        expire = values.data.get("expire")
-        if status == UserStatusCreate.on_hold:
-            if on_hold_expire == 0 or on_hold_expire is None:
-                raise ValueError("User cannot be on hold without a valid on_hold_expire_duration.")
-            if expire:
-                raise ValueError("User cannot be on hold with specified expire.")
-        return status
+    @field_validator("username", check_fields=False)
+    @classmethod
+    def validate_username(cls, v):
+        if not re.match(r"^[a-zA-Z0-9-_@.]+$", v):
+            raise ValueError("Username can only contain alphanumeric characters, -, _, @, and .")
+
+        # Additional check to prevent consecutive special characters
+        if re.search(r"[-_@.]{2,}", v):
+            raise ValueError("Username cannot have consecutive special characters")
+
+        return v
 
     @field_validator("group_ids", mode="after")
     @classmethod
     def group_ids_validator(cls, v):
-        if v and len(v) < 1:
-            raise ValueError("you must select at least one group")
-        return v
+        return ListValidator.not_null_list(v, "group")
 
 
-class UserModify(User):
+class UserModify(UserWithValidator):
     status: UserStatusModify | None = None
-    data_limit_reset_strategy: UserDataLimitResetStrategy | None = None
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -189,16 +151,10 @@ class UserModify(User):
         }
     )
 
-    @field_validator("status", mode="before")
-    def validate_status(cls, status, values):
-        on_hold_expire = values.data.get("on_hold_expire_duration")
-        expire = values.data.get("expire")
-        if status == UserStatusCreate.on_hold:
-            if on_hold_expire == 0 or on_hold_expire is None:
-                raise ValueError("User cannot be on hold without a valid on_hold_expire_duration.")
-            if expire:
-                raise ValueError("User cannot be on hold with specified expire.")
-        return status
+    @field_validator("group_ids", mode="after")
+    @classmethod
+    def group_ids_validator(cls, v):
+        return ListValidator.nullable_list(v, "group")
 
 
 class UserResponse(User):
@@ -209,23 +165,17 @@ class UserResponse(User):
     lifetime_used_traffic: int = 0
     created_at: datetime
     subscription_url: str = ""
-    admin: Optional[Admin] = None
+    admin: AdminBaseInfo | None = None
     model_config = ConfigDict(from_attributes=True)
-    
 
-    @field_validator("used_traffic", "lifetime_used_traffic", mode="before")
+    @field_validator("used_traffic", "lifetime_used_traffic", "data_limit", mode="before")
+    @classmethod
     def cast_to_int(cls, v):
-        if v is None:  # Allow None values
-            return v
-        if isinstance(v, float):  # Allow float to int conversion
-            return int(v)
-        if isinstance(v, int):  # Allow integers directly
-            return v
-        raise ValueError("must be an integer or a float, not a string")  # Reject strings
+        return NumericValidatorMixin.cast_to_int(v)
 
 
 class SubscriptionUserResponse(UserResponse):
-    admin: Admin | None = Field(default=None, exclude=True)
+    admin: AdminBaseInfo | None = Field(default=None, exclude=True)
     note: str | None = Field(None, exclude=True)
     auto_delete_in_days: int | None = Field(None, exclude=True)
     model_config = ConfigDict(from_attributes=True)
@@ -236,28 +186,21 @@ class UsersResponse(BaseModel):
     total: int
 
     async def load_subscriptions(self, gen_sub_func):
-
         tasks = [gen_sub_func(user) for user in self.users]
         urls = await asyncio.gather(*tasks)
-        
+
         for user, url in zip(self.users, urls):
             user.subscription_url = url
 
 
 class UserUsageResponse(BaseModel):
-    node_id: Union[int, None] = None
+    node_id: int | None = None
     node_name: str
     used_traffic: int
 
     @field_validator("used_traffic", mode="before")
     def cast_to_int(cls, v):
-        if v is None:  # Allow None values
-            return v
-        if isinstance(v, float):  # Allow float to int conversion
-            return int(v)
-        if isinstance(v, int):  # Allow integers directly
-            return v
-        raise ValueError("must be an integer or a float")  # Reject strings
+        return NumericValidatorMixin.cast_to_int(v)
 
 
 class UserUsagesResponse(BaseModel):

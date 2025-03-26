@@ -12,9 +12,9 @@ from app.db.crud import (
     start_user_expire,
     update_user_status,
 )
-from app.db.models import User
+from app.db.models import User, ReminderType, UserStatus
 from app.node import node_manager as node_manager
-from app.models.user import ReminderType, UserResponse, UserStatus
+from app.models.user import UserResponse
 from app.utils.logger import get_logger
 from app.utils import report
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
@@ -89,7 +89,7 @@ async def review():
                     await add_notification_reminders(db, db_user)
                 continue
 
-            update_user_status(db, db_user, status)
+            await update_user_status(db, db_user, status)
 
             user = UserResponse.model_validate(db_user)
             asyncio.create_task(node_manager.update_user(user))
@@ -115,7 +115,7 @@ async def review():
             else:
                 continue
 
-            update_user_status(db, db_user, status)
+            await update_user_status(db, db_user, status)
             await start_user_expire(db, db_user)
             db_user = UserResponse.model_validate(db_user)
 
