@@ -201,6 +201,11 @@ class CreateHost(BaseHost):
 
         return v
 
+    @field_validator("status", mode="after")
+    def deduplicate_status(cls, v):
+        """Remove duplicate statuses while preserving exact order"""
+        return list(dict.fromkeys(v))
+
 
 class ProxyInbound(BaseModel):
     tag: str
