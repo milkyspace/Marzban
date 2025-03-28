@@ -274,7 +274,7 @@ async def process_inbounds_and_tags(
     reverse=False,
     user_status: UserStatus = UserStatus.active,
 ) -> list | str:
-    for _, host in filter_hosts(backend.hosts.items(), user_status):
+    for host in filter_hosts(backend.hosts.values(), user_status):
         tag = host["inbound_tag"]
         host_inbound = deepcopy(backend.config.inbounds_by_tag[tag])
 
