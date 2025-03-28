@@ -362,14 +362,6 @@ ProxyHostFingerprint = Enum(
 )
 
 
-class HostStatus(str, Enum):
-    active = "active"
-    disabled = "disabled"
-    limited = "limited"
-    expired = "expired"
-    on_hold = "on_hold"
-
-
 class ProxyHost(Base):
     __tablename__ = "hosts"
 
@@ -412,7 +404,7 @@ class ProxyHost(Base):
     http_headers: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     transport_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     mux_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    status: Mapped[List[HostStatus]] = mapped_column(SQLArray(SQLEnum(HostStatus)), default=list, server_default="[]")
+    status: Mapped[List[UserStatus]] = mapped_column(SQLArray(SQLEnum(UserStatus)), default=list, server_default="[]")
 
 
 class System(Base):

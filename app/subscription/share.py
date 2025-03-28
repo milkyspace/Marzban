@@ -7,7 +7,7 @@ from datetime import timezone, timedelta, datetime as dt
 from jdatetime import date as jd
 
 from app import backend
-from app.db.models import User, UserStatus, HostStatus
+from app.db.models import User, UserStatus
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import (
@@ -249,16 +249,10 @@ def filter_hosts(hosts: list, user_status: UserStatus) -> list:
     if not HOST_STATUS_FILTER:
         return hosts
 
-    if user_status == UserStatus.active:
-        return list(filter(lambda x: not x["status"] or HostStatus.active in x["status"], hosts))
-    elif user_status == UserStatus.on_hold:
-        return list(filter(lambda x: not x["status"] or HostStatus.on_hold in x["status"], hosts))
-    elif user_status == UserStatus.expired:
-        return list(filter(lambda x: HostStatus.expired in x["status"], hosts))
-    elif user_status == UserStatus.limited:
-        return list(filter(lambda x: HostStatus.limited in x["status"], hosts))
-    elif user_status == UserStatus.disabled:
-        return list(filter(lambda x: HostStatus.disabled in x["status"], hosts))
+    if user_status in (UserStatus.active, UserStatus.on_hold):
+        return [host for host in hosts if not host["status"] or user_status in host["status"]]
+
+    return [host for host in hosts if host["status"] and user_status in host["status"]]
 
 
 async def process_inbounds_and_tags(
