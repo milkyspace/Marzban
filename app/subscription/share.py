@@ -257,6 +257,8 @@ def filter_hosts(hosts: list, user_status: UserStatus) -> list:
         return list(filter(lambda x: HostStatus.expired in x["status"], hosts))
     elif user_status == UserStatus.limited:
         return list(filter(lambda x: HostStatus.limited in x["status"], hosts))
+    elif user_status == UserStatus.disabled:
+        return list(filter(lambda x: HostStatus.disabled in x["status"], hosts))
 
 
 async def process_inbounds_and_tags(
