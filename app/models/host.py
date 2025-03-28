@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Union
 from app import backend
-from app.db.models import ProxyHostSecurity, ProxyHostALPN, ProxyHostFingerprint
+from app.db.models import ProxyHostSecurity, ProxyHostALPN, ProxyHostFingerprint, HostStatus
 from app.models.proxy import ProxyTypes
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -171,6 +171,7 @@ class BaseHost(BaseModel):
     random_user_agent: bool = False
     use_sni_as_host: bool = False
     priority: int
+    status: list[HostStatus] = []
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -7,8 +7,8 @@ from datetime import timezone, timedelta, datetime as dt
 from jdatetime import date as jd
 
 from app import backend
+from app.db.models import User, UserStatus, HostStatus
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
-from app.db.models import User, UserStatus
 
 from . import (
     StandardLinks,
@@ -23,6 +23,7 @@ from config import (
     ACTIVE_STATUS_TEXT,
     DISABLED_STATUS_TEXT,
     EXPIRED_STATUS_TEXT,
+    HOST_STATUS_FILTER,
     LIMITED_STATUS_TEXT,
     ONHOLD_STATUS_TEXT,
 )
@@ -47,14 +48,23 @@ STATUS_TEXTS = {
 }
 
 
-async def generate_standard_links(proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool) -> list:
+async def generate_standard_links(
+    proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool, user_status: UserStatus
+) -> list:
     format_variables = setup_format_variables(extra_data)
     conf = StandardLinks()
-    return await process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    return await process_inbounds_and_tags(
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse, user_status=user_status
+    )
 
 
 async def generate_clash_subscription(
-    proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool, is_meta: bool = False
+    proxies: dict,
+    inbounds: list[str],
+    extra_data: dict,
+    reverse: bool,
+    is_meta: bool = False,
+    user_status: UserStatus = UserStatus.active,
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -62,33 +72,46 @@ async def generate_clash_subscription(
         conf = ClashConfiguration()
 
     format_variables = setup_format_variables(extra_data)
-    return await process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    return await process_inbounds_and_tags(
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse, user_status=user_status
+    )
 
 
-async def generate_singbox_subscription(proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool) -> str:
+async def generate_singbox_subscription(
+    proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool, user_status: UserStatus
+) -> str:
     conf = SingBoxConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return await process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
 
 
-async def generate_outline_subscription(proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool) -> str:
+async def generate_outline_subscription(
+    proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool, user_status: UserStatus
+) -> str:
     conf = OutlineConfiguration()
 
     format_variables = setup_format_variables(extra_data)
-    return await process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    return await process_inbounds_and_tags(
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse, user_status=user_status
+    )
 
 
-async def generate_xray_subscription(proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool) -> str:
+async def generate_xray_subscription(
+    proxies: dict, inbounds: list[str], extra_data: dict, reverse: bool, user_status: UserStatus
+) -> str:
     conf = XrayConfig()
 
     format_variables = setup_format_variables(extra_data)
-    return await process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    return await process_inbounds_and_tags(
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse, user_status=user_status
+    )
 
 
 async def generate_subscription(user: User, config_format: str, as_base64: bool, reverse: bool = False) -> str:
     kwargs = {
         "proxies": user.proxy_settings,
+        "user_status": user.status,
         "inbounds": user.inbounds(backend.config.inbounds),
         "extra_data": user.__dict__,
         "reverse": reverse,
@@ -222,6 +245,20 @@ def setup_format_variables(extra_data: dict) -> dict:
     return format_variables
 
 
+def filter_hosts(hosts: list, user_status: UserStatus) -> list:
+    if not HOST_STATUS_FILTER:
+        return hosts
+
+    if user_status == UserStatus.active:
+        return list(filter(lambda x: not x["status"] or HostStatus.active in x["status"], hosts))
+    elif user_status == UserStatus.on_hold:
+        return list(filter(lambda x: not x["status"] or HostStatus.on_hold in x["status"], hosts))
+    elif user_status == UserStatus.expired:
+        return list(filter(lambda x: HostStatus.expired in x["status"], hosts))
+    elif user_status == UserStatus.limited:
+        return list(filter(lambda x: HostStatus.limited in x["status"], hosts))
+
+
 async def process_inbounds_and_tags(
     inbounds: list[str],
     proxies: dict,
@@ -233,8 +270,9 @@ async def process_inbounds_and_tags(
     | ClashMetaConfiguration
     | OutlineConfiguration,
     reverse=False,
+    user_status: UserStatus = UserStatus.active,
 ) -> list | str:
-    for _, host in backend.hosts.items():
+    for _, host in filter_hosts(backend.hosts.items(), user_status):
         tag = host["inbound_tag"]
         host_inbound = deepcopy(backend.config.inbounds_by_tag[tag])
 
@@ -278,23 +316,21 @@ async def process_inbounds_and_tags(
         if host.get("use_sni_as_host", False) and sni:
             req_host = sni
 
-        host_inbound.update(
-            {
-                "port": host["port"] or host_inbound["port"],
-                "sni": sni,
-                "host": req_host,
-                "tls": host_inbound["tls"] if host["tls"] is None else host["tls"],
-                "alpn": host["alpn"] if host["alpn"] else None,
-                "path": path,
-                "fp": host["fingerprint"] or host_inbound.get("fp", ""),
-                "ais": host["allowinsecure"] or host_inbound.get("allowinsecure", ""),
-                "fragment_settings": host["fragment_settings"],
-                "noise_settings": host["noise_settings"],
-                "random_user_agent": host["random_user_agent"],
-                "http_headers": host["http_headers"],
-                "mux_settings": host["mux_settings"],
-            }
-        )
+        host_inbound.update({
+            "port": host["port"] or host_inbound["port"],
+            "sni": sni,
+            "host": req_host,
+            "tls": host_inbound["tls"] if host["tls"] is None else host["tls"],
+            "alpn": host["alpn"] if host["alpn"] else None,
+            "path": path,
+            "fp": host["fingerprint"] or host_inbound.get("fp", ""),
+            "ais": host["allowinsecure"] or host_inbound.get("allowinsecure", ""),
+            "fragment_settings": host["fragment_settings"],
+            "noise_settings": host["noise_settings"],
+            "random_user_agent": host["random_user_agent"],
+            "http_headers": host["http_headers"],
+            "mux_settings": host["mux_settings"],
+        })
         if ts := host["transport_settings"]:
             for v in ts.values():
                 if v:

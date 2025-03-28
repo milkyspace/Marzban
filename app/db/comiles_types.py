@@ -1,4 +1,4 @@
-from sqlalchemy import String, Numeric
+from sqlalchemy import String, Numeric, ARRAY
 from sqlalchemy.sql.expression import FunctionElement
 from sqlalchemy.ext.compiler import compiles
 
@@ -22,6 +22,28 @@ def compile_cs_postgresql(element, compiler, **kw):
 @compiles(CaseSensitiveString, "mysql")
 def compile_cs_mysql(element, compiler, **kw):
     return f"VARCHAR({element.length}) COLLATE utf8mb4_bin"  # utf8mb4_bin is case-sensitive
+
+
+class SQLArray(ARRAY):
+    """Custom ARRAY type that compiles to JSON in SQL"""
+
+    def __init__(self, item_type, **kwargs):
+        super().__init__(item_type, **kwargs)
+
+
+@compiles(SQLArray, "sqlite")
+def compile_sqlite_array(element, compiler, **kw):
+    return "JSON"
+
+
+@compiles(SQLArray, "postgresql")
+def compile_sqlite_array_postgresql(element, compiler, **kw):
+    return compiler.visit_ARRAY(element, **kw)
+
+
+@compiles(SQLArray, "mysql")
+def compile_sqlite_array_mysql(element, compiler, **kw):
+    return "JSON"
 
 
 class DaysDiff(FunctionElement):

@@ -1,28 +1,28 @@
 import os
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from sqlalchemy import (
     JSON,
     BigInteger,
     Column,
-    Enum as SQLEnum,
     Float,
     ForeignKey,
     String,
     Table,
     UniqueConstraint,
-    func,
-    event,
     and_,
     case,
+    event,
+    func,
     or_,
+    Enum as SQLEnum,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
 from app.db.base import Base
-from app.db.comiles_types import CaseSensitiveString, DaysDiff
+from app.db.comiles_types import CaseSensitiveString, DaysDiff, SQLArray
 
 inbounds_groups_association = Table(
     "inbounds_groups_association",
@@ -362,6 +362,14 @@ ProxyHostFingerprint = Enum(
 )
 
 
+class HostStatus(str, Enum):
+    active = "active"
+    disabled = "disabled"
+    limited = "limited"
+    expired = "expired"
+    on_hold = "on_hold"
+
+
 class ProxyHost(Base):
     __tablename__ = "hosts"
 
@@ -404,6 +412,7 @@ class ProxyHost(Base):
     http_headers: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     transport_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     mux_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
+    status: Mapped[List[HostStatus]] = mapped_column(SQLArray(SQLEnum(HostStatus)), default=list, server_default="[]")
 
 
 class System(Base):
