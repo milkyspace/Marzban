@@ -26,6 +26,7 @@ from config import (
     HOST_STATUS_FILTER,
     LIMITED_STATUS_TEXT,
     ONHOLD_STATUS_TEXT,
+    REMOVE_HOSTS_WITH_NO_STATUS,
 )
 
 SERVER_IP = get_public_ip()
@@ -252,7 +253,10 @@ def filter_hosts(hosts: list, user_status: UserStatus) -> list:
     if user_status in (UserStatus.active, UserStatus.on_hold):
         return [host for host in hosts if not host["status"] or user_status in host["status"]]
 
-    return [host for host in hosts if host["status"] and user_status in host["status"]]
+    if REMOVE_HOSTS_WITH_NO_STATUS:
+        return [host for host in hosts if host["status"] and user_status in host["status"]]
+
+    return [host for host in hosts if not host["status"] or user_status in host["status"]]
 
 
 async def process_inbounds_and_tags(

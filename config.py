@@ -37,7 +37,9 @@ XRAY_EXCLUDE_INBOUND_TAGS = config("XRAY_EXCLUDE_INBOUND_TAGS", default="").spli
 XRAY_SUBSCRIPTION_URL_PREFIX = config("XRAY_SUBSCRIPTION_URL_PREFIX", default="").strip("/")
 XRAY_SUBSCRIPTION_PATH = config("XRAY_SUBSCRIPTION_PATH", default="sub").strip("/")
 
+# Filter hosts based on user status
 HOST_STATUS_FILTER = config("HOST_STATUS_FILTER", default=False, cast=bool)
+REMOVE_HOSTS_WITH_NO_STATUS = config("REMOVE_HOSTS_WITH_NO_STATUS", default=False, cast=bool)
 
 # Telegram
 TELEGRAM_API_TOKEN = config("TELEGRAM_API_TOKEN", default="")
