@@ -5,6 +5,8 @@ from app.db.models import ProxyHostSecurity, ProxyHostALPN, ProxyHostFingerprint
 from app.models.proxy import ProxyTypes
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.models.validators import ListValidator
+
 
 class XHttpModes(str, Enum):
     auto = "auto"
@@ -203,8 +205,7 @@ class CreateHost(BaseHost):
 
     @field_validator("status", mode="after")
     def deduplicate_status(cls, v):
-        """Remove duplicate statuses while preserving exact order"""
-        return list(dict.fromkeys(v))
+        return ListValidator.deduplicate_values(v)
 
 
 class ProxyInbound(BaseModel):
