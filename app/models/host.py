@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 from typing import Union
 from app import backend
@@ -206,6 +207,14 @@ class CreateHost(BaseHost):
     @field_validator("status", mode="after")
     def deduplicate_status(cls, v):
         return ListValidator.deduplicate_values(v)
+
+
+class HostResponse(BaseHost):
+    @field_validator("status", mode="before")
+    def parse_status(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)  # Convert JSON string to list
+        return value
 
 
 class ProxyInbound(BaseModel):
