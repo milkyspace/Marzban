@@ -22,7 +22,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
 from app.db.base import Base
-from app.db.comiles_types import CaseSensitiveString, DaysDiff, SQLArray
+from app.db.comiles_types import CaseSensitiveString, DaysDiff, EnumArray
 
 inbounds_groups_association = Table(
     "inbounds_groups_association",
@@ -404,7 +404,7 @@ class ProxyHost(Base):
     http_headers: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     transport_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
     mux_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON(none_as_null=True), default=None)
-    status: Mapped[List[UserStatus]] = mapped_column(SQLArray(SQLEnum(UserStatus)), default=list, server_default="[]")
+    status: Mapped[List[UserStatus]] = mapped_column(EnumArray(UserStatus), default=list, server_default="[]")
 
 
 class System(Base):

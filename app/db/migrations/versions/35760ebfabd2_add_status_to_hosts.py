@@ -7,7 +7,7 @@ Create Date: 2025-03-28 09:04:24.440491
 """
 from alembic import op
 import sqlalchemy as sa
-from app.db.comiles_types import SQLArray
+from app.db.comiles_types import EnumArray
 
 
 # revision identifiers, used by Alembic.
@@ -21,7 +21,7 @@ def upgrade() -> None:
     dialect = op.get_bind().dialect.name
 
     # Define the column type once for reusability
-    status_column_type = SQLArray(sa.Enum('active', 'disabled', 'limited', 'expired', 'on_hold', name='userstatus'))
+    status_column_type = EnumArray(sa.Enum('active', 'disabled', 'limited', 'expired', 'on_hold', name='userstatus'))
 
     if dialect == 'mysql':
         # MySQL: Add nullable, update, then alter to non-nullable
