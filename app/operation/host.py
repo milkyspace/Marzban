@@ -20,6 +20,18 @@ class HostOperator(BaseOperator):
         return await get_hosts(db=db, offset=offset, limit=limit)
 
     async def add_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> HostResponse:
+        if new_host.transport_settings.xhttp_settings and (
+            nested_host := new_host.transport_settings.xhttp_settings.download_settings
+        ):
+            ds_host = await get_host_by_id(db, nested_host)
+            if not ds_host:
+                return self.raise_error("download host not found", 404)
+            if (
+                ds_host.transport_settings.xhttp_settings
+                and ds_host.transport_settings.xhttp_settings.download_settings
+            ):
+                return self.raise_error("download host cannot be a download host", 400)
+
         db_host = await add_host(db, new_host)
 
         logger.info(f'Host "{db_host.id}" added by admin "{admin.username}"')
@@ -34,6 +46,18 @@ class HostOperator(BaseOperator):
     async def modify_host(
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
     ) -> HostResponse:
+        if modified_host.transport_settings.xhttp_settings and (
+            nested_host := modified_host.transport_settings.xhttp_settings.download_settings
+        ):
+            ds_host = await get_host_by_id(db, nested_host)
+            if not ds_host:
+                return self.raise_error("download host not found", 404)
+            if (
+                ds_host.transport_settings.xhttp_settings
+                and ds_host.transport_settings.xhttp_settings.download_settings
+            ):
+                return self.raise_error("download host cannot be a download host", 400)
+
         db_host = await self.get_validated_host(db, host_id)
 
         db_host = await modify_host(db=db, db_host=db_host, modified_host=modified_host)
