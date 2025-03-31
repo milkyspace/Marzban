@@ -259,7 +259,9 @@ def filter_hosts(hosts: list, user_status: UserStatus) -> list:
     return [host for host in hosts if not host["status"] or user_status in host["status"]]
 
 
-def process_host(host: dict, format_variables: dict, inbounds: list[str], proxies: dict) -> tuple[dict, dict, str]:
+def process_host(
+    host: dict, format_variables: dict, inbounds: list[str], proxies: dict, conf
+) -> tuple[dict, dict, str]:
     tag = host["inbound_tag"]
     host_inbound: dict = deepcopy(backend.config.inbounds_by_tag[tag])
 
@@ -325,11 +327,15 @@ def process_host(host: dict, format_variables: dict, inbounds: list[str], proxie
 
     if host.get("downloadSettings"):
         download_settings, _, download_address = process_host(
-            host["downloadSettings"], format_variables, inbounds, proxies
+            host["downloadSettings"], format_variables, inbounds, proxies, conf
         )
         if download_settings:
             download_settings["address"] = download_address.format_map(format_variables)
-            host_inbound["downloadSettings"] = download_settings
+            if isinstance(conf, StandardLinks):
+                xc = XrayConfig()
+                host_inbound["downloadSettings"] = xc.download_config(download_settings, True)
+            else:
+                host_inbound["downloadSettings"] = download_settings
 
     return host_inbound, settings, address
 
@@ -348,7 +354,7 @@ async def process_inbounds_and_tags(
     user_status: UserStatus = UserStatus.active,
 ) -> list | str:
     for host in filter_hosts(backend.hosts.values(), user_status):
-        host_inbound, settings, address = process_host(host, format_variables, inbounds, proxies)
+        host_inbound, settings, address = process_host(host, format_variables, inbounds, proxies, conf)
         if host_inbound:
             conf.add(
                 remark=host["remark"].format_map(format_variables),

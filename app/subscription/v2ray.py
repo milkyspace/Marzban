@@ -153,20 +153,13 @@ class StandardLinks(BaseSubscription):
                 "scStreamUpServerSecs": scStreamUpServerSecs,
                 "xmux": xmux,
                 "headers": http_headers if http_headers is not None else {},
+                "downloadSettings": downloadSettings,
             }
             if random_user_agent:
                 if mode in ("stream-one", "stream-up") and not noGRPCHeader:
                     extra["headers"]["User-Agent"] = choice(self.grpc_user_agent_data)
                 else:
                     extra["headers"]["User-Agent"] = choice(self.user_agent_list)
-
-            if downloadSettings:
-                try:
-                    from . import XrayConfig
-                    xc = XrayConfig()
-                    extra["downloadSettings"] = xc.download_config(downloadSettings, True)
-                except ImportError:
-                    extra["downloadSettings"] = None
 
             extra = self._remove_none_values(extra)
 
