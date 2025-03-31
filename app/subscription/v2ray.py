@@ -161,10 +161,12 @@ class StandardLinks(BaseSubscription):
                     extra["headers"]["User-Agent"] = choice(self.user_agent_list)
 
             if downloadSettings:
-                from . import XrayConfig
-
-                xc = XrayConfig()
-                extra["downloadSettings"] = xc.download_config(downloadSettings, True)
+                try:
+                    from . import XrayConfig
+                    xc = XrayConfig()
+                    extra["downloadSettings"] = xc.download_config(downloadSettings, True)
+                except ImportError:
+                    extra["downloadSettings"] = None
 
             extra = self._remove_none_values(extra)
 

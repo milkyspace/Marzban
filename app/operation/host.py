@@ -30,7 +30,7 @@ class HostOperator(BaseOperator):
                 ds_host.transport_settings.xhttp_settings
                 and ds_host.transport_settings.xhttp_settings.download_settings
             ):
-                return self.raise_error("download host cannot be a download host", 400)
+                return self.raise_error("download host cannot have a download host", 400)
 
         db_host = await add_host(db, new_host)
 
@@ -56,7 +56,7 @@ class HostOperator(BaseOperator):
                 ds_host.transport_settings.xhttp_settings
                 and ds_host.transport_settings.xhttp_settings.download_settings
             ):
-                return self.raise_error("download host cannot be a download host", 400)
+                return self.raise_error("download host cannot have a download host", 400)
 
         db_host = await self.get_validated_host(db, host_id)
 
