@@ -5,52 +5,25 @@ from sqlalchemy.orm import Session
 from app import async_scheduler as scheduler
 from app.db import GetDB
 from app.db.crud import (
-    get_notification_reminder,
     reset_user_by_next,
-    start_user_expire,
-    update_user_status,
+    start_users_expire,
+    update_users_status,
     get_active_to_expire_users,
     get_active_to_limited_users,
     get_on_hold_to_active_users,
     get_usage_percentage_reached_users,
     get_days_left_reached_users,
 )
-from app.db.models import User, ReminderType, UserStatus
+from app.db.models import User, UserStatus
 from app.node import node_manager as node_manager
 from app.models.user import UserResponse
 from app.utils.logger import get_logger
-from app.utils import report
-from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from app import notification
 from app.jobs.dependencies import SYSTEM_ADMIN
 from config import JOB_REVIEW_USERS_INTERVAL, NOTIFY_DAYS_LEFT, NOTIFY_REACHED_USAGE_PERCENT, WEBHOOK_ADDRESS
 
 
 logger = get_logger("review-users")
-
-
-async def add_notification_reminders(db: Session, user: User) -> None:
-    if user.data_limit:
-        usage_percent = calculate_usage_percent(user.used_traffic, user.data_limit)
-
-        for percent in sorted(NOTIFY_REACHED_USAGE_PERCENT, reverse=True):
-            if usage_percent >= percent:
-                if not await get_notification_reminder(db, user.id, ReminderType.data_usage, threshold=percent):
-                    report.data_usage_percent_reached(
-                        db, usage_percent, UserResponse.model_validate(user), user.id, user.expire, threshold=percent
-                    )
-                break
-
-    if user.expire:
-        expire_days = calculate_expiration_days(user.expire)
-
-        for days_left in sorted(NOTIFY_DAYS_LEFT):
-            if expire_days <= days_left:
-                if not await get_notification_reminder(db, user.id, ReminderType.expiration_date, threshold=days_left):
-                    report.expire_days_reached(
-                        db, expire_days, UserResponse.model_validate(user), user.id, user.expire, threshold=days_left
-                    )
-                break
 
 
 async def reset_user_by_next_report(db: Session, db_user: User):
@@ -60,51 +33,54 @@ async def reset_user_by_next_report(db: Session, db_user: User):
 
     asyncio.create_task(node_manager.update_user(user))
 
-    asyncio.create_task(notification.user_data_reset_by_next(user, user.admin))
+    asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
 
 
 async def review():
     async with GetDB() as db:
 
         async def change_status(db_user: User, status: UserStatus):
-            db_user = await update_user_status(db, db_user, status)
-
             user = UserResponse.model_validate(db_user)
-            asyncio.create_task(node_manager.remove_user(user))
-            asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN.username))
+
+            if user.status is not UserStatus.active:
+                asyncio.create_task(node_manager.remove_user(user))
+
+            asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
 
             logger.info(f'User "{db_user.username}" status changed to {status.value}')
 
             if db_user.next_plan and (db_user.next_plan.fire_on_either or (db_user.is_limited and db_user.is_expired)):
                 await reset_user_by_next_report(db, db_user)
 
-        async def activate_user(db_user: User):
-            db_user = await start_user_expire(db, db_user)
+        if expired_users := await get_active_to_expire_users(db):
+            updated_users = await update_users_status(db, expired_users, UserStatus.expired)
+            for user in updated_users:
+                await change_status(user, UserStatus.expired)
 
-            logger.info(f'User "{db_user.username}" status changed to {UserStatus.active.value}')
-            user = UserResponse.model_validate(db_user)
-            asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN.username))
-
-        users = await get_active_to_expire_users(db)
-        if users:
-            await asyncio.gather(*[change_status(user, UserStatus.expired) for user in users])
-
-        users = await get_active_to_limited_users(db)
-        if users:
-            await asyncio.gather(*[change_status(user, UserStatus.limited) for user in users])
+        if limited_users := await get_active_to_limited_users(db):
+            updated_users = await update_users_status(db, limited_users, UserStatus.limited)
+            for user in updated_users:
+                await change_status(user, UserStatus.limited)
 
         users = await get_on_hold_to_active_users(db)
-        if users:
-            await asyncio.gather(*[activate_user(user) for user in users])
+        if on_hold_users := await get_on_hold_to_active_users(db):
+            updated_users = await start_users_expire(db, on_hold_users)
+
+            for user in updated_users:
+                await change_status(user, UserStatus.active)
 
         if WEBHOOK_ADDRESS:
-            for percentage in NOTIFY_REACHED_USAGE_PERCENT:
-                users = await get_usage_percentage_reached_users(db, percentage)
-                # TODO: implement async data_usage_percent_reached notfication
+            for percent in NOTIFY_REACHED_USAGE_PERCENT:
+                users = await get_usage_percentage_reached_users(db, percent)
+                for user in users:
+                    await notification.data_usage_percent_reached(
+                        db, user.usage_percentage, UserResponse.model_validate(user), percent
+                    )
 
             for days in NOTIFY_DAYS_LEFT:
                 users = await get_days_left_reached_users(db, days)
-                # TODO: implement async expire_days_reached notfication
+                for user in users:
+                    await notification.expire_days_reached(db, user.days_left, UserResponse.model_validate(user), days)
 
 
 scheduler.add_job(review, "interval", seconds=JOB_REVIEW_USERS_INTERVAL, coalesce=True, max_instances=1)

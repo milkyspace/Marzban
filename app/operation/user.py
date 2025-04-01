@@ -19,8 +19,8 @@ from app.db.crud import (
     reset_user_by_next,
     set_owner,
     get_all_users_usages,
-    get_expired_users_username,
-    delete_expired_users,
+    get_expired_users,
+    remove_users,
     UsersSortingOptions,
 )
 from app.db.models import User, UserStatus
@@ -78,7 +78,7 @@ class UserOperator(BaseOperator):
         user = await self.validate_user(db_user)
 
         asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
-        asyncio.create_task(notification.create_user(user, admin.username))
+        asyncio.create_task(notification.create_user(user, admin))
 
         logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
 
@@ -106,10 +106,10 @@ class UserOperator(BaseOperator):
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
 
-        asyncio.create_task(notification.modify_user(user, admin.username))
+        asyncio.create_task(notification.modify_user(user, admin))
 
         if user.status != old_status:
-            asyncio.create_task(notification.user_status_change(user, admin.username))
+            asyncio.create_task(notification.user_status_change(user, admin))
 
             logger.info(f'User "{db_user.username}" status changed from "{old_status.value}" to "{user.status.value}"')
 
@@ -122,7 +122,7 @@ class UserOperator(BaseOperator):
         user = await self.validate_user(db_user)
         asyncio.create_task(node_manager.remove_user(user))
 
-        asyncio.create_task(notification.remove_user(user, admin.username))
+        asyncio.create_task(notification.remove_user(user, admin))
 
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
         return {}
@@ -138,9 +138,9 @@ class UserOperator(BaseOperator):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
 
         if user.status != old_status:
-            asyncio.create_task(notification.user_status_change(user, admin.username))
+            asyncio.create_task(notification.user_status_change(user, admin))
 
-        asyncio.create_task(notification.reset_user_data_usage(user, admin.username))
+        asyncio.create_task(notification.reset_user_data_usage(user, admin))
 
         logger.info(f'User "{db_user.username}" usage was reset by admin "{admin.username}"')
 
@@ -154,7 +154,7 @@ class UserOperator(BaseOperator):
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
 
-        asyncio.create_task(notification.user_subscription_revoked(user, admin.username))
+        asyncio.create_task(notification.user_subscription_revoked(user, admin))
 
         logger.info(f'User "{db_user.username}" subscription was revoked by admin "{admin.username}"')
 
@@ -181,9 +181,9 @@ class UserOperator(BaseOperator):
             asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
 
         if user.status != old_status:
-            asyncio.create_task(notification.user_status_change(user, admin.username))
+            asyncio.create_task(notification.user_status_change(user, admin))
 
-        asyncio.create_task(notification.user_data_reset_by_next(user, admin.username))
+        asyncio.create_task(notification.user_data_reset_by_next(user, admin))
 
         logger.info(f'User "{db_user.username}"\'s usage was reset by next plan by admin "{admin.username}"')
 
@@ -235,7 +235,8 @@ class UserOperator(BaseOperator):
             opts = sort.strip(",").split(",")
             for opt in opts:
                 try:
-                    sort_list.append(UsersSortingOptions[opt])
+                    enum_member = UsersSortingOptions[opt]
+                    sort_list.append(enum_member.value)
                 except KeyError:
                     self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
 
@@ -293,11 +294,11 @@ class UserOperator(BaseOperator):
 
         expired_after, expired_before = self.validate_dates(expired_after, expired_before)
         if not admin.is_sudo:
-            id = await self.get_validated_admin(db, admin.username).id
+            id = (await self.get_validated_admin(db, admin.username)).id
         else:
             id = None
-
-        return await get_expired_users_username(db, expired_after, expired_before, id)
+        users = await get_expired_users(db, expired_after, expired_before, id)
+        return [row.username for row in users]
 
     async def delete_expired_users(
         self, db: AsyncSession, admin: AdminDetails, expired_after: dt | None = None, expired_before: dt | None = None
@@ -309,14 +310,16 @@ class UserOperator(BaseOperator):
         - **expired_before** UTC datetime (optional)
         - At least one of expired_after or expired_before must be provided
         """
+
         expired_after, expired_before = self.validate_dates(expired_after, expired_before)
         if not admin.is_sudo:
-            id = await self.get_validated_admin(db, admin.username).id
+            id = (await self.get_validated_admin(db, admin.username)).id
         else:
             id = None
+        users = await get_expired_users(db, expired_after, expired_before, id)
+        await remove_users(db, users)
 
-        removed_users, count = await delete_expired_users(db, expired_after, expired_before, id)
+        username_list = [row.username for row in users]
+        asyncio.create_task(self.remove_users_logger(users=username_list, by=admin.username))
 
-        asyncio.create_task(self.remove_users_logger(users=removed_users, by=admin.username))
-
-        return RemoveUsersResponse(users=removed_users, count=count)
+        return RemoveUsersResponse(users=username_list, count=len(username_list))

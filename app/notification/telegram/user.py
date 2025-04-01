@@ -5,11 +5,11 @@ from config import TELEGRAM_LOGGER_TOPIC_ID, TELEGRAM_LOGGER_CHANNEL_ID, TELEGRA
 
 
 _status = {
-    "active": "**✅ Activated**",
-    "on_hold": "**🕔 On Hold**",
-    "disabled": "**❌ Disabled**",
-    "limited": "**🪫 Limited**",
-    "expired": "**📅 Expired**",
+    "active": "**✅ #Activated**",
+    "on_hold": "**🕔 #On_Hold**",
+    "disabled": "**❌ #Disabled**",
+    "limited": "**🪫 #Limited**",
+    "expired": "**📅 #Expired**",
 }
 
 
@@ -30,11 +30,11 @@ async def user_status_change(user: UserResponse, by: str):
 
 async def create_user(user: UserResponse, by: str):
     data = (
-        "*🆕 #Create User*\n"
+        "*🆕 #Create_User*\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"**Username:** `{user.username}`\n"
-        + f"**Data Limit**: `{readable_size(user.data_limit)}`\n"
-        + f"**Expire Date:** `{user.expire}`\n"
+        + f"**Data Limit**: `{readable_size(user.data_limit) if user.data_limit else 'Unlimited'}`\n"
+        + f"**Expire Date:** `{user.expire if user.expire else 'Never'}`\n"
         + f"**Data Limit Reset Strategy:** `{user.data_limit_reset_strategy.value}`\n"
         + f"**Has Next Plan**: `{bool(user.next_plan)}`\n"
         + "➖➖➖➖➖➖➖➖➖\n"
@@ -49,11 +49,11 @@ async def create_user(user: UserResponse, by: str):
 
 async def modify_user(user: UserResponse, by: str):
     data = (
-        "*✏️ #Modify User*\n"
+        "*✏️ #Modify_User*\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"**Username:** `{user.username}`\n"
-        + f"**Data Limit**: `{readable_size(user.data_limit)}`\n"
-        + f"**Expire Date:** `{user.expire}`\n"
+        + f"**Data Limit**: `{readable_size(user.data_limit) if user.data_limit else 'Unlimited'}`\n"
+        + f"**Expire Date:** `{user.expire if user.expire else 'Never'}`\n"
         + f"**Data Limit Reset Strategy:** `{user.data_limit_reset_strategy.value}`\n"
         + f"**Has Next Plan**: `{bool(user.next_plan)}`\n"
         + "➖➖➖➖➖➖➖➖➖\n"
@@ -68,7 +68,7 @@ async def modify_user(user: UserResponse, by: str):
 
 async def remove_user(user: UserResponse, by: str):
     data = (
-        "🗑️ #Remove User\n"
+        "🗑️ #Remove_User\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"**Username:** `{user.username}`\n"
         + "➖➖➖➖➖➖➖➖➖\n"
@@ -83,10 +83,10 @@ async def remove_user(user: UserResponse, by: str):
 
 async def reset_user_data_usage(user: UserResponse, by: str):
     data = (
-        "🔁 #Reset User Data Usage\n"
+        "🔁 #Reset_User_Data_Usage\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"**Username:** `{user.username}`\n"
-        + f"**Data Limit**: `{readable_size(user.data_limit)}`\n"
+        + f"**Data Limit**: `{readable_size(user.data_limit) if user.data_limit else 'Unlimited'}`\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"_Belongs To_: `{user.admin.username if user.admin else None}`\n"
         + f"_By: #{by}_"
@@ -99,11 +99,11 @@ async def reset_user_data_usage(user: UserResponse, by: str):
 
 async def user_data_reset_by_next(user: UserResponse, by: str):
     data = (
-        "🔁 #Reset User By Next\n"
+        "🔁 #Reset_User_By_Next\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"**Username:** `{user.username}`\n"
-        + f"**Data Limit**: `{readable_size(user.data_limit)}`\n"
-        + f"**Expire Date:** `{user.expire}`\n"
+        + f"**Data Limit**: `{readable_size(user.data_limit) if user.data_limit else 'Unlimited'}`\n"
+        + f"**Expire Date:** `{user.expire if user.expire else 'Never'}`\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"_Belongs To_: `{user.admin.username if user.admin else None}`\n"
         + f"_By: #{by}_"
@@ -116,7 +116,7 @@ async def user_data_reset_by_next(user: UserResponse, by: str):
 
 async def user_subscription_revoked(user: UserResponse, by: str):
     data = (
-        "🛑 #Revoke User Subscribtion\n"
+        "🛑 #Revoke_User_Subscribtion\n"
         + "➖➖➖➖➖➖➖➖➖\n"
         + f"**Username:** `{user.username}`\n"
         + "➖➖➖➖➖➖➖➖➖\n"

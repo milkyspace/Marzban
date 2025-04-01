@@ -22,7 +22,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import select, text
 from app.db.base import Base
-from app.db.comiles_types import CaseSensitiveString, DaysDiff, EnumArray
+from app.db.compiles_types import CaseSensitiveString, DaysDiff, EnumArray
 
 inbounds_groups_association = Table(
     "inbounds_groups_association",
@@ -211,11 +211,11 @@ class User(Base):
 
         # Check if online_at is set and greater than or equal to base time
         if self.online_at:
-            base_time = self.edit_at or self.created_at
-            return self.online_at >= base_time
+            base_time = (self.edit_at or self.created_at).replace(tzinfo=timezone.utc)
+            return self.online_at.replace(tzinfo=timezone.utc) >= base_time
 
         # Check if on_hold_timeout has passed
-        if self.on_hold_timeout and self.on_hold_timeout <= now:
+        if self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=timezone.utc) <= now:
             return True
 
         return False
@@ -247,9 +247,9 @@ class User(Base):
 
     @hybrid_property
     def days_left(self) -> int:
-        if self.expire is None:
+        if not self.expire:
             return 0
-        remaining_days = (self.expire - datetime.now(timezone.utc)).days
+        remaining_days = (self.expire.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)).days
         return max(remaining_days, 0)
 
     @days_left.expression
