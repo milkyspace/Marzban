@@ -20,8 +20,8 @@ async def hosts(storage: dict):
             if host.is_disabled or (config.get_inbound(host.inbound_tag) is None):
                 continue
             downstream = None
-            if host.transport_settings.xhttp_settings and (
-                ds_host := host.transport_settings.xhttp_settings.download_settings
+            if host.transport_settings and (
+                ds_host := host.transport_settings.get("xhttp_settings", {}).get("download_settings")
             ):
                 downstream = await get_host_by_id(db, ds_host)
 
@@ -44,6 +44,7 @@ async def hosts(storage: dict):
                 "http_headers": host.http_headers,
                 "mux_settings": host.mux_settings,
                 "transport_settings": host.transport_settings,
+                "status": host.status,
             }
 
             if downstream:
@@ -68,6 +69,7 @@ async def hosts(storage: dict):
                     "http_headers": downstream.http_headers,
                     "mux_settings": downstream.mux_settings,
                     "transport_settings": downstream.transport_settings,
+                    "status": downstream.status,
                 }
             else:
                 host_data["downloadSettings"] = None
