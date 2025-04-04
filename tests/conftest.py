@@ -18,14 +18,3 @@ def ignore_all_warnings():
     warnings.filterwarnings("ignore", category=UserWarning)
     warnings.filterwarnings("ignore", category=FutureWarning)
     warnings.filterwarnings("ignore", category=RuntimeWarning)
-
-
-
-
-# @pytest.mark.skipif(TEST_FROM != "local", reason="Skipping database setup for remote tests")
-# @pytest.mark.asyncio(scope="session")
-# async def init_test_db():
-#     """Initialize the test database before running any tests."""
-#     from tests.api import create_tables
-
-#     await create_tables()
