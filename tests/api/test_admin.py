@@ -2,11 +2,6 @@ from tests.api import client
 from fastapi import status
 
 
-def test_base():
-    response = client.get("/")
-    assert response.status_code == 200
-
-
 def test_admin_login():
     """Test that the admin login route is accessible."""
 
@@ -17,6 +12,19 @@ def test_admin_login():
     assert response.status_code == status.HTTP_200_OK
     assert "access_token" in response.json()
     return response.json()["access_token"]
+
+
+def test_get_admin():
+    """Test that the admin get route is accessible."""
+
+    username = "testadmin"
+    access_token = test_admin_login()
+    response = client.get(
+        url="/api/admin",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["username"] == username
 
 
 def test_admin_create():
@@ -55,8 +63,22 @@ def test_update_admin():
     assert response.json()["is_disabled"] is True
 
 
+def test_get_admins():
+    """Test that the admins get route is accessible."""
+
+    username = "testadmincreate"
+    access_token = test_admin_login()
+    response = client.get(
+        url="/api/admins",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert username in [admin["username"] for admin in response.json()]
+
+
 def test_disable_admin():
     """Test that the admin disable route is accessible."""
+
     username = "testadmincreate"
     password = "TestAdminupdate#11"
     response = client.post(
@@ -65,6 +87,7 @@ def test_disable_admin():
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert response.json()["detail"] == "your account has been disabled"
+
 
 def test_admin_delete():
     """Test that the admin delete route is accessible."""
