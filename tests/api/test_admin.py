@@ -8,7 +8,8 @@ def test_base():
 
 def test_admin_login():
     """Test that the admin login route is accessible."""
+
     response = client.post(
-        "/api/admin/token", data={"username": "testadmin", "password": "TestAdmin#11", "grant_type": "password"}
+        "/api/admin/token", data={"username": "testadmin", "password": "testadmin", "grant_type": "password"}
     )
     assert response.status_code == 200
