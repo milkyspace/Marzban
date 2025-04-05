@@ -15,77 +15,42 @@ on:
       - "app/routers/**"
 
 jobs:
-  test-postgresql:
+  test-databases:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        db:
+          - name: postgresql
+            image: postgres:latest
+            env:
+              POSTGRES_PASSWORD: postgres
+              POSTGRES_DB: testdb
+            port: 5432
+            url: postgresql+asyncpg://postgres:postgres@localhost:5432/testdb
+            health_cmd: pg_isready
+          - name: mysql
+            image: mysql:latest
+            env:
+              MYSQL_ROOT_PASSWORD: root
+              MYSQL_DATABASE: testdb
+            port: 3306
+            url: mysql+asyncmy://root:root@localhost:3306/testdb
+            health_cmd: mysqladmin ping -hlocalhost -uroot -proot
+          - name: sqlite
+            url: sqlite+aiosqlite:///./test.db
+
     services:
-      postgres:
-        image: postgres:latest # Use the latest version of PostgreSQL
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
+      db:
+        image: ${{ matrix.db.image }}
+        env: ${{ toJson(matrix.db.env) }}
         ports:
-          - 5432:5432
+          - ${{ matrix.db.port }}:${{ matrix.db.port }}
         options: >-
-          --health-cmd="pg_isready"
+          --health-cmd="${{ matrix.db.health_cmd }}"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: make setup
 
-      # - name: Wait for PostgreSQL to be ready
-      # run: sleep 10
-
-      - name: Run Alembic Migrations
-        env:
-          SQLALCHEMY_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/testdb
-          TEST_FROM: github
-        run: make run-migration
-
-      - name: Run Tests
-        run: make test
-
-  test-mysql:
-    runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:latest # Use the latest version of MySQL
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: testdb
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -hlocalhost -uroot -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: make setup
-      # - name: Wait for MySQL to be ready
-      #   run: sleep 10
-
-      - name: Run Alembic Migrations
-        env:
-          SQLALCHEMY_DATABASE_URL: mysql+asyncmy://root:root@localhost:3306/testdb
-          TEST_FROM: github
-        run: make run-migration
-
-      - name: Run Tests
-        run: make test
-
-  test-sqlite:
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -96,7 +61,7 @@ jobs:
 
       - name: Run Alembic Migrations
         env:
-          SQLALCHEMY_DATABASE_URL: sqlite+aiosqlite:///./test.db
+          SQLALCHEMY_DATABASE_URL: ${{ matrix.db.url }}
           TEST_FROM: github
         run: make run-migration
 
