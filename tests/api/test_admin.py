@@ -42,6 +42,19 @@ def test_admin_create():
     assert response.json()["username"] == username
 
 
+def test_admin_db_login():
+    """Test that the admin db login route is accessible."""
+
+    username = "testadmincreate"
+    password = "TestAdmincreate#11"
+    response = client.post(
+        url="/api/admin/token",
+        data={"username": username, "password": password, "grant_type": "password"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert "access_token" in response.json()
+
+
 def test_update_admin():
     """Test that the admin update route is accessible."""
 
