@@ -1,4 +1,5 @@
 import asyncio
+import json
 from fastapi.testclient import TestClient
 from decouple import config
 from sqlalchemy import StaticPool
@@ -7,9 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app import app
 from app.db import get_db
 from app.db.base import Base
-import config as env_config
 
-env_config.SUDOERS["testadmin"] = "testadmin"
+XRAY_JSON_TEST_FILE = "tests/api/xray_config-test.json"
 
 TEST_FROM = config("TEST_FROM", default="local")
 
@@ -46,5 +46,27 @@ if TEST_FROM == "local":
             yield db
 
     app.dependency_overrides[get_db] = get_test_db
+
+with open(XRAY_JSON_TEST_FILE, "w") as f:
+    f.write(
+        json.dumps(
+            {
+                "log": {"loglevel": "warning"},
+                "routing": {"rules": [{"ip": ["geoip:private"], "outboundTag": "BLOCK", "type": "field"}]},
+                "inbounds": [
+                    {
+                        "tag": "Shadowsocks TCP",
+                        "listen": "0.0.0.0",
+                        "port": 1080,
+                        "protocol": "shadowsocks",
+                        "settings": {"clients": [], "network": "tcp,udp"},
+                    }
+                ],
+                "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
+            },
+            indent=4,
+        )
+    )
+
 
 client = TestClient(app)

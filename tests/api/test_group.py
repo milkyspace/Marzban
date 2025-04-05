@@ -31,7 +31,7 @@ def test_group_create():
         assert response.json()["inbound_tags"] == random_inbound
 
 
-def test_group_get():
+def test_groups_get():
     """Test that the group get route is accessible."""
     access_token = test_admin_login()
     response = client.get(

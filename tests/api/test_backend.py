@@ -49,7 +49,7 @@ xray_config = {
             },
         },
         {
-            "tag": "VLESS WebSocket sina",
+            "tag": "VLESS WebSocket TEST",
             "listen": "0.0.0.0",
             "port": 2087,
             "protocol": "vless",
