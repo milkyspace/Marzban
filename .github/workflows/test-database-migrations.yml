@@ -15,43 +15,53 @@ on:
       - "app/routers/**"
 
 jobs:
-  test:
+  test-databases:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        db: [postgresql, mysql, sqlite]
+        db:
+          - name: postgresql
+            service:
+              image: postgres:latest
+              env:
+                POSTGRES_PASSWORD: postgres
+                POSTGRES_DB: testdb
+              ports:
+                - 5432:5432
+              options: >-
+                --health-cmd="pg_isready"
+                --health-interval=10s
+                --health-timeout=5s
+                --health-retries=5
+            url: postgresql+asyncpg://postgres:postgres@localhost:5432/testdb
+          - name: mysql
+            service:
+              image: mysql:latest
+              env:
+                MYSQL_ROOT_PASSWORD: root
+                MYSQL_DATABASE: testdb
+              ports:
+                - 3306:3306
+              options: >-
+                --health-cmd="mysqladmin ping -hlocalhost -uroot -proot"
+                --health-interval=10s
+                --health-timeout=5s
+                --health-retries=5
+            url: mysql+asyncmy://root:root@localhost:3306/testdb
+          - name: sqlite
+            url: sqlite+aiosqlite:///./test.db
 
     services:
-      postgres:
-        if: matrix.db == 'postgresql'
-        image: postgres:latest
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-      mysql:
-        if: matrix.db == 'mysql'
-        image: mysql:latest
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: testdb
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -hlocalhost -uroot -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+      db-service:
+        if: matrix.db.service
+        image: ${{ matrix.db.service.image }}
+        env: ${{ matrix.db.service.env }}
+        ports: ${{ matrix.db.service.ports }}
+        options: ${{ matrix.db.service.options }}
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -61,7 +71,7 @@ jobs:
 
       - name: Run Alembic Migrations
         env:
-          SQLALCHEMY_DATABASE_URL: ${{ matrix.db == 'postgresql' && 'postgresql+asyncpg://postgres:postgres@localhost:5432/testdb' || matrix.db == 'mysql' && 'mysql+asyncmy://root:root@localhost:3306/testdb' || 'sqlite+aiosqlite:///./test.db' }}
+          SQLALCHEMY_DATABASE_URL: ${{ matrix.db.url }}
           TEST_FROM: github
         run: make run-migration
 
