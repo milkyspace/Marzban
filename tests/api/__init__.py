@@ -13,7 +13,7 @@ XRAY_JSON_TEST_FILE = "tests/api/xray_config-test.json"
 
 TEST_FROM = config("TEST_FROM", default="local")
 
-print(f"TEST_FROM:: {TEST_FROM}")
+print(f"TEST_FROM: {TEST_FROM}")
 
 if TEST_FROM == "local":
     DATABASE_URL = "sqlite+aiosqlite:///:memory:"
