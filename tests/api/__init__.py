@@ -11,7 +11,7 @@ from app.db.base import Base
 
 XRAY_JSON_TEST_FILE = "tests/api/xray_config-test.json"
 
-TEST_FROM = config("TEST_FROM", default="local")
+TEST_FROM = config("TEST_FROM=", default="local")
 
 print(f"TEST_FROM: {TEST_FROM}")
 
