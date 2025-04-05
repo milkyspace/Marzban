@@ -31,17 +31,6 @@ def test_group_create():
         assert response.json()["inbound_tags"] == random_inbound
 
 
-def test_groups_get():
-    """Test that the group get route is accessible."""
-    access_token = test_admin_login()
-    response = client.get(
-        url="/api/groups",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    assert response.status_code == status.HTTP_200_OK
-    assert response.json()["total"] == len(group_names)
-
-
 def test_group_update():
     """Test that the group update route is accessible."""
     access_token = test_admin_login()
@@ -74,3 +63,15 @@ def test_group_get_by_id():
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["name"] == "testgroup2"
+
+
+def test_groups_get():
+    """Test that the group get route is accessible."""
+    access_token = test_admin_login()
+    response = client.get(
+        url="/api/groups",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["total"] == 2
+    return response.json()["groups"]
