@@ -1,6 +1,5 @@
 import asyncio
 import json
-import sys
 from fastapi.testclient import TestClient
 from decouple import config
 from sqlalchemy import StaticPool
