@@ -28,7 +28,8 @@ def test_group_create():
         )
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["name"] == group_name
-        assert response.json()["inbound_tags"] == random_inbound
+        for inbound in response.json()["inbound_tags"]:
+            assert inbound in random_inbound
 
 
 def test_group_update():

@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from tests.api import client
 from fastapi import status
 from tests.api.test_admin import test_admin_login
@@ -7,7 +7,7 @@ from tests.api.test_admin import test_admin_login
 def test_user_create_active():
     """Test that the user create active route is accessible."""
     access_token = test_admin_login()
-    expire = datetime.now() + timedelta(days=30)
+    expire = datetime.now(timezone.utc) + timedelta(days=30)
     response = client.post(
         "/api/user",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -27,13 +27,13 @@ def test_user_create_active():
     assert response.json()["data_limit"] == (1024 * 1024 * 1024 * 10)
     assert response.json()["data_limit_reset_strategy"] == "no_reset"
     assert response.json()["status"] == "active"
-    assert response.json()["expire"] == expire.isoformat()
+    assert response.json()["expire"] == expire.replace(tzinfo=None).isoformat()
 
 
 def test_user_create_on_hold():
     """Test that the user create on hold route is accessible."""
     access_token = test_admin_login()
-    expire = datetime.now() + timedelta(days=30)
+    expire = datetime.now(timezone.utc) + timedelta(days=30)
     response = client.post(
         "/api/user",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -54,7 +54,7 @@ def test_user_create_on_hold():
     assert response.json()["data_limit"] == (1024 * 1024 * 1024 * 10)
     assert response.json()["data_limit_reset_strategy"] == "no_reset"
     assert response.json()["status"] == "on_hold"
-    assert response.json()["on_hold_timeout"] == expire.isoformat()
+    assert response.json()["on_hold_timeout"] == expire.replace(tzinfo=None).isoformat()
     assert response.json()["on_hold_expire_duration"] == (86400 * 30)
 
 
