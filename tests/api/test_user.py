@@ -7,7 +7,7 @@ from tests.api.test_admin import test_admin_login
 def test_user_create_active():
     """Test that the user create active route is accessible."""
     access_token = test_admin_login()
-    expire = datetime.now(timezone.utc) + timedelta(days=30)
+    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
         "/api/user",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -40,7 +40,7 @@ def test_user_create_active():
 def test_user_create_on_hold():
     """Test that the user create on hold route is accessible."""
     access_token = test_admin_login()
-    expire = datetime.now(timezone.utc) + timedelta(days=30)
+    expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
         "/api/user",
         headers={"Authorization": f"Bearer {access_token}"},
