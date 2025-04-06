@@ -3,22 +3,16 @@ name: Test Database Migrations
 on:
   push:
     paths:
-      - "app/db/**"
-      - "app/operation/**"
-      - "tests/**"
-      - "app/routers/**"
+      - "app/**.py"
   pull_request:
     paths:
-      - "app/db/**"
-      - "app/operation/**"
-      - "tests/**"
-      - "app/routers/**"
+      - "app/**.py"
 
 jobs:
   test-databases:
     runs-on: ubuntu-latest
     services:
-      postgress:
+      postgres:
         image: postgres:latest
         env:
           POSTGRES_PASSWORD: postgres
