@@ -54,8 +54,7 @@ run-cli:
 # Run tests
 .PHONY: test
 test:
-	@#uv run pytest -v tests/
-	@  uv run pytest --capture=no -v tests/
+	@uv run pytest -v tests/
 
 # Run marzban with watchfiles
 .PHONY: run-watch
