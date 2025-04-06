@@ -36,10 +36,22 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+      mariadb:
+        image: mariadb:latest
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: testdb
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -hlocalhost -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     strategy:
       matrix:
-        db: [sqlite, postgres, mysql]
+        db: [sqlite, postgres, mysql, mariadb]
 
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +71,9 @@ jobs:
               ;;
             mysql)
               echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3306/testdb" >> $GITHUB_ENV
+              ;;
+            mariadb)
+              echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://root:root@localhost:3307/testdb" >> $GITHUB_ENV
               ;;
             esac
 
