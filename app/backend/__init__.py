@@ -84,7 +84,7 @@ async def check_inbounds(db: AsyncSession):
         await get_or_create_inbound(db, tag)
 
 
-on_startup(hosts.update)
+@on_startup
 async def initialize_hosts():
     async with GetDB() as db:
         await hosts.update(db)
