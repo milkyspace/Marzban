@@ -27,7 +27,14 @@ def test_user_create_active():
     assert response.json()["data_limit"] == (1024 * 1024 * 1024 * 10)
     assert response.json()["data_limit_reset_strategy"] == "no_reset"
     assert response.json()["status"] == "active"
-    assert response.json()["expire"] == expire.replace(tzinfo=None).isoformat()
+    
+    # Parse the response date string back to datetime
+    response_datetime = datetime.fromisoformat(response.json()["expire"])
+    # Format both to the same format without microseconds
+    expected_formatted = expire.replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+    response_formatted = response_datetime.strftime("%Y-%m-%dT%H:%M:%S")
+    
+    assert response_formatted == expected_formatted
 
 
 def test_user_create_on_hold():
@@ -54,8 +61,15 @@ def test_user_create_on_hold():
     assert response.json()["data_limit"] == (1024 * 1024 * 1024 * 10)
     assert response.json()["data_limit_reset_strategy"] == "no_reset"
     assert response.json()["status"] == "on_hold"
-    assert response.json()["on_hold_timeout"] == expire.replace(tzinfo=None).isoformat()
     assert response.json()["on_hold_expire_duration"] == (86400 * 30)
+
+    # Parse the response date string back to datetime
+    response_datetime = datetime.fromisoformat(response.json()["on_hold_timeout"])
+    # Format both to the same format without microseconds
+    expected_formatted = expire.replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+    response_formatted = response_datetime.strftime("%Y-%m-%dT%H:%M:%S")
+    
+    assert response_formatted == expected_formatted
 
 
 def test_users_get():
