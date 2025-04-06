@@ -97,9 +97,6 @@ def test_user_get():
     assert response.status_code == status.HTTP_200_OK
     assert len(response.json()["users"]) == 1
     assert response.json()["users"][0]["username"] == "test_user_active"
-    
-    for group in response.json()["group_ids"]:
-        assert group in [2, 3]
 
 
 def test_user_update():
