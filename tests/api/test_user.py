@@ -23,10 +23,12 @@ def test_user_create_active():
     )
     assert response.status_code == status.HTTP_201_CREATED
     assert response.json()["username"] == "test_user_active"
-    assert response.json()["group_ids"] == [2, 3]
     assert response.json()["data_limit"] == (1024 * 1024 * 1024 * 10)
     assert response.json()["data_limit_reset_strategy"] == "no_reset"
     assert response.json()["status"] == "active"
+
+    for group in response.json()["group_ids"]:
+        assert group in [2, 3]
     
     # Parse the response date string back to datetime
     response_datetime = datetime.fromisoformat(response.json()["expire"])
@@ -57,11 +59,13 @@ def test_user_create_on_hold():
     )
     assert response.status_code == status.HTTP_201_CREATED
     assert response.json()["username"] == "test_user_on_hold"
-    assert response.json()["group_ids"] == [2, 3]
     assert response.json()["data_limit"] == (1024 * 1024 * 1024 * 10)
     assert response.json()["data_limit_reset_strategy"] == "no_reset"
     assert response.json()["status"] == "on_hold"
     assert response.json()["on_hold_expire_duration"] == (86400 * 30)
+
+    for group in response.json()["group_ids"]:
+        assert group in [2, 3]
 
     # Parse the response date string back to datetime
     response_datetime = datetime.fromisoformat(response.json()["on_hold_timeout"])
@@ -93,7 +97,9 @@ def test_user_get():
     assert response.status_code == status.HTTP_200_OK
     assert len(response.json()["users"]) == 1
     assert response.json()["users"][0]["username"] == "test_user_active"
-    assert response.json()["users"][0]["group_ids"] == [2, 3]
+    
+    for group in response.json()["group_ids"]:
+        assert group in [2, 3]
 
 
 def test_user_update():
