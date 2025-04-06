@@ -24,6 +24,18 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+      timescaledb:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_PASSWORD: timescale
+          POSTGRES_DB: testdb
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
       mysql:
         image: mysql:latest
         env:
@@ -43,7 +55,6 @@ jobs:
           MYSQL_DATABASE: testdb
           MYSQL_USER: testuser
           MYSQL_PASSWORD: testpassword
-
         ports:
           - 3307:3306
         options: >-
@@ -54,7 +65,7 @@ jobs:
 
     strategy:
       matrix:
-        db: [sqlite, postgres, mysql, mariadb]
+        db: [sqlite, postgres, mysql, mariadb, timescaledb]
 
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +88,9 @@ jobs:
               ;;
             mariadb)
               echo "SQLALCHEMY_DATABASE_URL=mysql+asyncmy://testuser:testpassword@localhost:3307/testdb" >> $GITHUB_ENV
+              ;;
+            timescaledb)
+              echo "SQLALCHEMY_DATABASE_URL=postgresql+asyncpg://postgres:timescale@localhost:5433/testdb" >> $GITHUB_ENV
               ;;
             esac
 
