@@ -48,6 +48,8 @@ REMOVE_HOSTS_WITH_NO_STATUS = config("REMOVE_HOSTS_WITH_NO_STATUS", default=Fals
 
 # Telegram
 TELEGRAM_API_TOKEN = config("TELEGRAM_API_TOKEN", default="")
+TELEGRAM_WEBHOOK_URL = config("TELEGRAM_WEBHOOK_URL", default="").strip("/")
+TELEGRAM_WEBHOOK_SECRET_KEY = config("TELEGRAM_WEBHOOK_SECRET_KEY", default=None)
 TELEGRAM_ADMIN_ID = config(
     "TELEGRAM_ADMIN_ID", default="", cast=lambda v: int(v.split(",")[0].strip()) if v.strip() else None
 )
