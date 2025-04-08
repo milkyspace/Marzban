@@ -1132,10 +1132,6 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
     return (await db.execute(get_admin_queryset().where(Admin.username == username))).unique().scalar_one_or_none()
 
 
-async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int):
-    return await db.execute(get_admin_queryset().where(Admin.telegram_id == telegram_id).scalar())
-
-
 async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
     """
     Creates a new admin in the database.

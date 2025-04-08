@@ -1,11 +1,9 @@
-from aiogram import Router, types
+from aiogram import types
 from aiogram.filters import Command
 from app.models.admin import AdminDetails
-
-router = Router(name="admin")
-
+from . import router
 
 
-@router.message(Command(commands=("admin"), prefix="/"))
+@router.message(Command(commands=("admin")))
 async def admin_panel(message: types.Message, admin: AdminDetails | None):
     await message.reply("hello admin")

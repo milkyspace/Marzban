@@ -1,27 +1,25 @@
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.utils.chat_action import ChatActionMiddleware
-from aiogram.exceptions import TelegramNetworkError
 from aiogram.client.session.aiohttp import AiohttpSession
-from app import on_startup, on_shutdown
-from config import TELEGRAM_API_TOKEN, TELEGRAM_PROXY_URL, TELEGRAM_WEBHOOK_SECRET_KEY, TELEGRAM_WEBHOOK_URL
-from .routers import admin, base
-from .middlewares.acl import AclMiddleware
+from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramNetworkError
 
-routes = (admin.router, base.router)
+from app import get_logger, on_shutdown, on_startup
+from config import TELEGRAM_API_TOKEN, TELEGRAM_PROXY_URL, TELEGRAM_WEBHOOK_SECRET_KEY, TELEGRAM_WEBHOOK_URL
+
+from .handlers import include_routers
+from .middlewares import setup_middlewares
+
+logger = get_logger("telegram-bot")
+
 
 bot = None
 dp = None
 if TELEGRAM_API_TOKEN:
     session = AiohttpSession(proxy=TELEGRAM_PROXY_URL)
-    bot = Bot(token=TELEGRAM_API_TOKEN, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(token=TELEGRAM_API_TOKEN, session=session,
+              default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
-
-
-def register_middlewares():
-    dp.message.middleware.register(ChatActionMiddleware())
-    dp.message.middleware.register(AclMiddleware())
 
 
 @on_startup
@@ -30,16 +28,17 @@ async def initial_telegram_bot():
         return
 
     # register handlers
-    dp.include_routers(*routes)
-
-    register_middlewares()
+    include_routers(dp)
+    # register middlewares
+    setup_middlewares(dp)
     # register webhook
     webhook_address = f"{TELEGRAM_WEBHOOK_URL}/api/tghook/{TELEGRAM_API_TOKEN}"
-    print(webhook_address)
+    logger.info(webhook_address)
     try:
-        await bot.set_webhook(webhook_address, secret_token=TELEGRAM_WEBHOOK_SECRET_KEY)
+        await bot.set_webhook(webhook_address, secret_token=TELEGRAM_WEBHOOK_SECRET_KEY, allowed_updates=("message", "callback_query"))
+        logger.info("temegran bot started successfully")
     except TelegramNetworkError as err:
-        print(err.message)
+        logger.error(err.message)
 
 
 @on_shutdown
@@ -48,6 +47,6 @@ async def bot_down():
         return
     try:
         await bot.delete_webhook()
-    except TelegramNetworkError:
-        pass
+    except TelegramNetworkError as err:
+        logger.error(err.message)
     await dp.storage.close()
