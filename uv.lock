@@ -823,7 +823,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyjwt" },
     { name = "pyopenssl" },
-    { name = "pysocks" },
     { name = "python-dateutil" },
     { name = "python-decouple" },
     { name = "python-dotenv" },
@@ -886,7 +885,6 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.10.4" },
     { name = "pyjwt", specifier = "==2.8.0" },
     { name = "pyopenssl", specifier = "==24.2.1" },
-    { name = "pysocks", specifier = "==1.7.1" },
     { name = "python-dateutil", specifier = "==2.8.2" },
     { name = "python-decouple", specifier = "==3.6" },
     { name = "python-dotenv", specifier = "==0.21.1" },
@@ -1263,15 +1261,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/93/cd/112f092ec27cca83e0516de0a3368dbd9128c187fb6b52aaaa7cde39c96d/pypng-0.20220715.0.tar.gz", hash = "sha256:739c433ba96f078315de54c0db975aee537cbc3e1d0ae4ed9aab0ca1e427e2c1", size = 128992 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3e/b9/3766cc361d93edb2ce81e2e1f87dd98f314d7d513877a342d31b30741680/pypng-0.20220715.0-py3-none-any.whl", hash = "sha256:4a43e969b8f5aaafb2a415536c1a8ec7e341cd6a3f957fd5b5f32a4cfeed902c", size = 58057 },
-]
-
-[[package]]
-name = "pysocks"
-version = "1.7.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bd/11/293dd436aea955d45fc4e8a35b6ae7270f5b8e00b53cf6c024c83b657a11/PySocks-1.7.1.tar.gz", hash = "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0", size = 284429 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/59/b4572118e098ac8e46e399a1dd0f2d85403ce8bbaad9ec79373ed6badaf9/PySocks-1.7.1-py3-none-any.whl", hash = "sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5", size = 16725 },
 ]
 
 [[package]]
