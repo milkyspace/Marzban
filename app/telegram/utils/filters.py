@@ -1,13 +1,14 @@
 from aiogram.filters import Filter
+from aiogram.types import Message
+
+from app.models.admin import AdminDetails
 
 
 class IsAdminfilter(Filter):
-    async def __call__(self, *args, **kwargs) -> bool:
-        return bool(kwargs.get("admin"))
+    async def __call__(self, _, admin: AdminDetails | None) -> bool:
+        return bool(admin)
 
 
 class IsAdminSUDO(Filter):
-    async def __call__(self, *args, **kwargs) -> bool:
-        if admin := kwargs.get("admin"):
-            return admin.is_sudo
-        return False
+    async def __call__(self, _, admin: AdminDetails | None) -> bool:
+        return admin.is_sudo if admin else False
