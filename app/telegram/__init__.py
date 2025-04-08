@@ -17,8 +17,7 @@ bot = None
 dp = None
 if TELEGRAM_API_TOKEN:
     session = AiohttpSession(proxy=TELEGRAM_PROXY_URL)
-    bot = Bot(token=TELEGRAM_API_TOKEN, session=session,
-              default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(token=TELEGRAM_API_TOKEN, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
 
@@ -35,7 +34,9 @@ async def initial_telegram_bot():
     webhook_address = f"{TELEGRAM_WEBHOOK_URL}/api/tghook/{TELEGRAM_API_TOKEN}"
     logger.info(webhook_address)
     try:
-        await bot.set_webhook(webhook_address, secret_token=TELEGRAM_WEBHOOK_SECRET_KEY, allowed_updates=("message", "callback_query"))
+        await bot.set_webhook(
+            webhook_address, secret_token=TELEGRAM_WEBHOOK_SECRET_KEY, allowed_updates=("message", "callback_query")
+        )
         logger.info("temegran bot started successfully")
     except TelegramNetworkError as err:
         logger.error(err.message)
@@ -46,7 +47,7 @@ async def bot_down():
     if not TELEGRAM_API_TOKEN:
         return
     try:
-        await bot.delete_webhook()
+        await bot.delete_webhook(drop_pending_updates=True)
     except TelegramNetworkError as err:
         logger.error(err.message)
     await dp.storage.close()

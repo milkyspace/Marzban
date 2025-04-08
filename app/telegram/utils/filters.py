@@ -1,5 +1,4 @@
 from aiogram.filters import Filter
-from aiogram.types import Message
 
 from app.models.admin import AdminDetails
 
