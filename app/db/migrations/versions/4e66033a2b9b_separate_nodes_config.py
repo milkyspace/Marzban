@@ -51,7 +51,14 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.add_column("nodes", sa.Column("backend_config_id", sa.Integer(), nullable=True))
-    op.create_foreign_key(None, "nodes", "backend_configs", ["backend_config_id"], ["id"], ondelete="SET NULL")
+    with op.batch_alter_table("nodes", schema=None) as batch_op:
+        batch_op.create_foreign_key(
+            None,
+            "backend_configs",
+            ["backend_config_id"],
+            ["id"],
+            ondelete="SET NULL"
+        )
     # ### end Alembic commands ###
     try:
         with open(XRAY_JSON, "r") as file:
