@@ -72,7 +72,7 @@ def upgrade() -> None:
         ),
         [
             {
-                "created_at": dt.now(tz.utc),
+                "created_at": dt.now(tz.utc).replace(tzinfo=None),
                 "name": "Default Backend Config",
                 "config": config,
                 "exclude_inbound_tags": ",".join(XRAY_EXCLUDE_INBOUND_TAGS),
