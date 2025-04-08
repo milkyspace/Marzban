@@ -62,7 +62,7 @@ class SystemOperator(BaseOperator):
             incoming_bandwidth_speed=realtime_bandwidth_stats.incoming_bytes,
             outgoing_bandwidth_speed=realtime_bandwidth_stats.outgoing_bytes,
         )
-    
+
     @staticmethod
     async def get_inbounds() -> list[str]:
         return await backend_manager.get_inbounds()

@@ -44,7 +44,7 @@ from app.models.group import GroupCreate, GroupModify
 from app.models.node import NodeCreate, NodeModify
 from app.models.user import UserModify, UserCreate
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
-from app.models.backend import BackendCreate, BackendResponse
+from app.models.backend import BackendCreate
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from config import NOTIFY_DAYS_LEFT, NOTIFY_REACHED_USAGE_PERCENT, USERS_AUTODELETE_DAYS
 

@@ -2,7 +2,6 @@ import base64
 import random
 import secrets
 from collections import defaultdict
-from copy import deepcopy
 from datetime import timezone, timedelta, datetime as dt
 from jdatetime import date as jd
 

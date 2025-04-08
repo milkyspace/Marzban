@@ -62,7 +62,7 @@ class BackendManager:
     async def get_inbounds_by_tag(self) -> dict:
         async with self._lock.reader_lock:
             return deepcopy(self._inbounds_by_tag)
-    
+
     async def get_inbound_by_tag(self, tag) -> dict:
         async with self._lock.reader_lock:
             inbound = self._inbounds_by_tag.get(tag, None)

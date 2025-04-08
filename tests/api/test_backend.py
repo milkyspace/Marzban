@@ -1,6 +1,3 @@
-from tests.api import client
-from tests.api.test_admin import test_admin_login
-from fastapi import status
 
 xray_config = {
     "log": {"loglevel": "info"},
@@ -306,7 +303,7 @@ xray_config = {
 }
 
 
-#def test_backend_update():
+# def test_backend_update():
 #    """Test that the backend update route is accessible."""
 #
 #    access_token = test_admin_login()
@@ -319,7 +316,7 @@ xray_config = {
 #    assert response.json() == xray_config
 #
 #
-#def test_backend_get():
+# def test_backend_get():
 #    """Test that the backend get route is accessible."""
 #
 #    access_token = test_admin_login()
@@ -331,7 +328,7 @@ xray_config = {
 #    assert response.json() == xray_config
 #
 #
-#def test_inbounds_get():
+# def test_inbounds_get():
 #    """Test that the inbounds get route is accessible."""
 #
 #    access_token = test_admin_login()

@@ -5,7 +5,15 @@ from enum import IntEnum
 from fastapi import HTTPException
 
 from app.db import AsyncSession
-from app.db.crud import get_admin, get_group_by_id, get_host_by_id, get_user, get_user_template, get_node_by_id, get_backend_config_by_id
+from app.db.crud import (
+    get_admin,
+    get_group_by_id,
+    get_host_by_id,
+    get_user,
+    get_user_template,
+    get_node_by_id,
+    get_backend_config_by_id,
+)
 from app.db.models import Admin as DBAdmin
 from app.db.models import Group, ProxyHost, User, Node, UserTemplate, BackendConfig
 from app.models.admin import AdminDetails

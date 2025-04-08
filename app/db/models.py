@@ -555,4 +555,3 @@ class BackendConfig(Base):
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
     exclude_inbound_tags: Mapped[Optional[str]] = mapped_column(String(2048))
     fallbacks_inbound_tags: Mapped[Optional[str]] = mapped_column(String(2048))
-    

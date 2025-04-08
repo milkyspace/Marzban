@@ -368,7 +368,7 @@ class XRayConfig(dict):
     def inbounds_by_tag(self) -> dict:
         """Get inbounds by tag."""
         return self._inbounds_by_tag
-    
+
     @property
     def inbounds(self) -> list[str]:
         """Get inbounds by tag."""
