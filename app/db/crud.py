@@ -1866,7 +1866,12 @@ async def create_backend_config(db: AsyncSession, backend_config: BackendCreate)
     Returns:
         BackendConfig: The newly created BackendResponse object.
     """
-    db_backend_config = BackendConfig(**backend_config.model_dump())
+    db_backend_config = BackendConfig(
+        name=backend_config.name,
+        config=backend_config.config,
+        exclude_inbound_tags=backend_config.exclude_inbound_tags or "",
+        fallbacks_inbound_tags=backend_config.fallbacks_inbound_tags or ""
+    )
     db.add(db_backend_config)
     await db.commit()
     await db.refresh(

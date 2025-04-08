@@ -18,7 +18,7 @@ from app.db.models import Admin as DBAdmin
 from app.db.models import Group, ProxyHost, User, Node, UserTemplate, BackendConfig
 from app.models.admin import AdminDetails
 from app.models.user import UserCreate, UserModify
-from app import backend
+from app.backend import backend_manager
 from app.utils.jwt import get_subscription_payload
 
 
@@ -127,7 +127,7 @@ class BaseOperator:
 
     async def check_inbound_tags(self, tags: list[str]) -> None:
         for tag in tags:
-            if tag not in backend.config._inbounds:
+            if tag not in await backend_manager.get_inbounds():
                 self.raise_error(f"{tag} not found", 400)
 
     async def get_validated_backend_config(self, db: AsyncSession, backend_id) -> BackendConfig:
