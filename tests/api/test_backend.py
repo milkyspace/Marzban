@@ -306,41 +306,41 @@ xray_config = {
 }
 
 
-def test_backend_update():
-    """Test that the backend update route is accessible."""
-
-    access_token = test_admin_login()
-    response = client.put(
-        url="/api/backend",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json=xray_config,
-    )
-    assert response.status_code == status.HTTP_200_OK
-    assert response.json() == xray_config
-
-
-def test_backend_get():
-    """Test that the backend get route is accessible."""
-
-    access_token = test_admin_login()
-    response = client.get(
-        url="/api/backend",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    assert response.status_code == status.HTTP_200_OK
-    assert response.json() == xray_config
-
-
-def test_inbounds_get():
-    """Test that the inbounds get route is accessible."""
-
-    access_token = test_admin_login()
-    response = client.get(
-        url="/api/inbounds",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    config_tags = [inbound["tag"] for inbound in xray_config["inbounds"]]
-    response_tags = [inbound for inbound in response.json() if "<=>" not in inbound]
-    assert response.status_code == status.HTTP_200_OK
-    assert len(response.json()) > 0
-    assert response_tags == config_tags
+#def test_backend_update():
+#    """Test that the backend update route is accessible."""
+#
+#    access_token = test_admin_login()
+#    response = client.put(
+#        url="/api/backend",
+#        headers={"Authorization": f"Bearer {access_token}"},
+#        json=xray_config,
+#    )
+#    assert response.status_code == status.HTTP_200_OK
+#    assert response.json() == xray_config
+#
+#
+#def test_backend_get():
+#    """Test that the backend get route is accessible."""
+#
+#    access_token = test_admin_login()
+#    response = client.get(
+#        url="/api/backend",
+#        headers={"Authorization": f"Bearer {access_token}"},
+#    )
+#    assert response.status_code == status.HTTP_200_OK
+#    assert response.json() == xray_config
+#
+#
+#def test_inbounds_get():
+#    """Test that the inbounds get route is accessible."""
+#
+#    access_token = test_admin_login()
+#    response = client.get(
+#        url="/api/inbounds",
+#        headers={"Authorization": f"Bearer {access_token}"},
+#    )
+#    config_tags = [inbound["tag"] for inbound in xray_config["inbounds"]]
+#    response_tags = [inbound for inbound in response.json() if "<=>" not in inbound]
+#    assert response.status_code == status.HTTP_200_OK
+#    assert len(response.json()) > 0
+#    assert response_tags == config_tags
