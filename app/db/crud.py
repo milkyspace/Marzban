@@ -1870,14 +1870,11 @@ async def create_backend_config(db: AsyncSession, backend_config: BackendCreate)
         name=backend_config.name,
         config=backend_config.config,
         exclude_inbound_tags=backend_config.exclude_inbound_tags or "",
-        fallbacks_inbound_tags=backend_config.fallbacks_inbound_tags or ""
+        fallbacks_inbound_tags=backend_config.fallbacks_inbound_tags or "",
     )
     db.add(db_backend_config)
     await db.commit()
-    await db.refresh(
-        db_backend_config,
-        attribute_names=["id", "created_at", "name", "config", "exclude_inbound_tags", "fallbacks_inbound_tags"],
-    )
+    await db.refresh(db_backend_config)
     return db_backend_config
 
 
