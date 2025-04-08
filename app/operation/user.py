@@ -70,7 +70,7 @@ class UserOperator(BaseOperator):
 
         user = await self.validate_user(db_user)
 
-        asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+        asyncio.create_task(node_manager.update_user(user, inbounds=config._inbounds))
         asyncio.create_task(notification.create_user(user, admin))
 
         logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
@@ -93,7 +93,7 @@ class UserOperator(BaseOperator):
         user = await self.validate_user(db_user)
 
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=config._inbounds))
         else:
             asyncio.create_task(node_manager.remove_user(user))
 
@@ -128,7 +128,7 @@ class UserOperator(BaseOperator):
         db_user = await reset_user_data_usage(db=db, db_user=db_user)
         user = await self.validate_user(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=config._inbounds))
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -145,7 +145,7 @@ class UserOperator(BaseOperator):
         db_user = await revoke_user_sub(db=db, db_user=db_user)
         user = await self.validate_user(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=config._inbounds))
 
         asyncio.create_task(notification.user_subscription_revoked(user, admin))
 
@@ -171,7 +171,7 @@ class UserOperator(BaseOperator):
 
         user = await self.validate_user(db_user)
         if user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=config._inbounds))
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))

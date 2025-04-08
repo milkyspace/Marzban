@@ -40,7 +40,7 @@ class GroupOperation(BaseOperator):
         users = await get_users(db, group_ids=[db_group.id])
         await asyncio.gather(
             *[
-                node_manager.update_user(UserResponse.model_validate(user), user.inbounds(config.inbounds))
+                node_manager.update_user(UserResponse.model_validate(user), user.inbounds(config._inbounds))
                 for user in users
             ]
         )
@@ -63,7 +63,7 @@ class GroupOperation(BaseOperator):
 
         await asyncio.gather(
             *[
-                node_manager.update_user(UserResponse.model_validate(user), user.inbounds(config.inbounds))
+                node_manager.update_user(UserResponse.model_validate(user), user.inbounds(config._inbounds))
                 for user in users
             ]
         )

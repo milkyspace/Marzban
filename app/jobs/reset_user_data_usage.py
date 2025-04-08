@@ -40,7 +40,7 @@ async def reset_user_data_usage():
 
             # make user active if limited on usage reset
             if user.status == UserStatus.active:
-                asyncio.create_task(node_manager.update_user(user=user, inbounds=config.inbounds))
+                asyncio.create_task(node_manager.update_user(user=user, inbounds=config._inbounds))
 
             logger.info(f'User data usage reset for User "{user.username}"')
 

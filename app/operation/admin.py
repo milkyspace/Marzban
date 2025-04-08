@@ -111,7 +111,7 @@ class AdminOperation(BaseOperator):
         users = await get_users(db, admin=db_admin)
         await asyncio.gather(
             *[
-                node_manager.update_user(UserResponse.model_validate(user), user.inbounds(config.inbounds))
+                node_manager.update_user(UserResponse.model_validate(user), user.inbounds(config._inbounds))
                 for user in users
             ]
         )
