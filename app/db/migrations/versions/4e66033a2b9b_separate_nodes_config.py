@@ -53,7 +53,7 @@ def upgrade() -> None:
     op.add_column("nodes", sa.Column("backend_config_id", sa.Integer(), nullable=True))
     with op.batch_alter_table("nodes", schema=None) as batch_op:
         batch_op.create_foreign_key(
-            None,
+            "nodes_ibfk_1",
             "backend_configs",
             ["backend_config_id"],
             ["id"],
