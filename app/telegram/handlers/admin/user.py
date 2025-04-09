@@ -38,19 +38,27 @@ async def create_user(query: CallbackQuery, admin: AdminDetails | None, state: F
 
 
 @router.message(CreateUser.username)
-async def process_username(message: Message, state: FSMContext):
+async def process_username(message: Message, state: FSMContext, admin: AdminDetails):
     username = message.text
     if not USERNAME_PATTERN.match(username):
         return await message.reply(
             "❌ Username only can be 3 to 32 characters and contain a-z, A-Z, 0-9, and underscores in between.",
             reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
         )
-    await state.update_data(username=username)
-    await state.set_state(CreateUser.data_limit)
-    await message.reply(
-        "⬆️ Enter Data Limit (GB):\n⚠️ Send 0 for unlimited.",
-        reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
-    )
+    async with GetDB() as db:
+        try:
+            await user_operations.get_validated_user(db, username, admin)
+            await message.reply(
+                "❌ user already exists.",
+                reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+            )
+        except ValueError:
+            await state.update_data(username=username)
+            await state.set_state(CreateUser.data_limit)
+            await message.reply(
+                "⬆️ Enter Data Limit (GB):\n⚠️ Send 0 for unlimited.",
+                reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+            )
 
 
 @router.message(CreateUser.data_limit)
@@ -104,7 +112,7 @@ async def process_expire(message: Message, state: FSMContext):
         await state.set_state(CreateUser.expire)
         return await message.reply(f"❌ {error_message}")
     await state.update_data(expire=expire_date)
-    await state.set_state(CreateUser.groups)
+    await state.set_state(CreateUser.group_ids)
     async with GetDB() as db:
         groups = await group_operations.get_all_groups(db)
     await message.reply(
@@ -113,26 +121,24 @@ async def process_expire(message: Message, state: FSMContext):
     )
 
 
-@router.callback_query(GroupsSelector.SelectorCallback.filter(), CreateUser.groups)
+@router.callback_query(GroupsSelector.SelectorCallback.filter(), CreateUser.group_ids)
 async def process_groups(query: CallbackQuery, state: FSMContext, callback_data: GroupsSelector.SelectorCallback):
-    groups = await state.get_value("groups")
-    if isinstance(groups, dict):
-        if callback_data.group_id in groups["ids"]:
-            groups["ids"].remove(callback_data.group_id)
-            groups["names"].remove(callback_data.group_name)
+    group_ids = await state.get_value("group_ids")
+    if isinstance(group_ids, list):
+        if callback_data.group_id in group_ids:
+            group_ids.remove(callback_data.group_id)
         else:
-            groups["ids"].append(callback_data.group_id)
-            groups["names"].append(callback_data.group_name)
+            group_ids.append(callback_data.group_id)
     else:
-        groups = {"ids": [callback_data.group_id], "names": [callback_data.group_name]}
+        group_ids = [callback_data.group_id]
 
-    await state.update_data(groups=groups)
+    await state.update_data(group_ids=group_ids)
 
     async with GetDB() as db:
         all_groups = await group_operations.get_all_groups(db)
 
     await query.message.edit_reply_markup(
-        reply_markup=GroupsSelector(groups=all_groups, selected_groups=groups).as_markup()
+        reply_markup=GroupsSelector(groups=all_groups, selected_groups=group_ids).as_markup()
     )
 
 
@@ -141,16 +147,11 @@ async def process_done(
     query: CallbackQuery, admin: AdminDetails, state: FSMContext, callback_data: GroupsSelector.DoneCallback
 ):
     data = await state.get_data()
-    if not data.get("groups", {}).get("ids"):
+    if not data.get("group_ids", []):
         return await query.answer("you have to select at least one groups", True)
 
     await state.clear()
-    new_user = UserCreate(
-        data_limit=data["data_limit"],
-        expire=data["expire"],
-        username=data["username"],
-        group_ids=data["groups"]["ids"],
-    )
+    new_user = UserCreate(**data)
     async with GetDB() as db:
         try:
             await user_operations.add_user(db, new_user, admin)

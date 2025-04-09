@@ -6,5 +6,5 @@ class CreateUser(StatesGroup):
     # status = State()
     expire = State()
     data_limit = State()
-    groups = State()
+    group_ids = State()
     # note = State()
