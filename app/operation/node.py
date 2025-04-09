@@ -33,8 +33,10 @@ class NodeOperator(BaseOperator):
     async def get_node_settings(self) -> NodeSettings:
         return NodeSettings(certificate=(await get_tls()).certificate)
 
-    async def get_db_nodes(self, db: AsyncSession, offset: int | None, limit: int | None) -> list[NodeResponse]:
-        return await get_nodes(db=db, offset=offset, limit=limit)
+    async def get_db_nodes(
+        self, db: AsyncSession, backend_id: int | None = None, offset: int | None = None, limit: int | None = None
+    ) -> list[Node]:
+        return await get_nodes(db=db, backend_id=backend_id, offset=offset, limit=limit)
 
     @staticmethod
     async def update_node_status(
@@ -176,10 +178,9 @@ class NodeOperator(BaseOperator):
         asyncio.create_task(self.connect_node(node_id))
         logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
 
-    @staticmethod
-    async def restart_all_node(admin: AdminDetails) -> None:
-        nodes = await node_manager.get_nodes()
-        await asyncio.gather(*[NodeOperator.connect_node(id) for id in nodes.keys()])
+    async def restart_all_node(self, db: AsyncSession, backend_id: int | None, admin: AdminDetails) -> None:
+        nodes: list[Node] = await self.get_db_nodes(db, backend_id)
+        await asyncio.gather(*[NodeOperator.connect_node(node.id) for node in nodes])
 
         logger.info(f'All nodes restarted by admin "{admin.username}"')
 

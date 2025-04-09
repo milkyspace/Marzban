@@ -341,6 +341,7 @@ def test_backend_update():
             "exclude_inbound_tags": "456",
             "fallbacks_inbound_tags": "123",
         },
+        params={"restart_nodes": False},
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["config"] == xray_config
@@ -366,8 +367,7 @@ def test_backend_delete_1():
 
     access_token = test_admin_login()
     response = client.delete(
-        url="/api/backend/1",
-        headers={"Authorization": f"Bearer {access_token}"},
+        url="/api/backend/1", headers={"Authorization": f"Bearer {access_token}"}, params={"restart_nodes": True}
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN
 

@@ -1433,7 +1433,8 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
 async def get_nodes(
     db: AsyncSession,
     status: Optional[Union[NodeStatus, list]] = None,
-    enabled: bool = None,
+    enabled: bool | None = None,
+    backend_id: int | None = None,
     offset: int | None = None,
     limit: int | None = None,
 ) -> list[Node]:
@@ -1458,6 +1459,9 @@ async def get_nodes(
 
     if enabled:
         query = query.where(Node.status != NodeStatus.disabled)
+
+    if backend_id:
+        query = query.where(Node.backend_config_id == backend_id)
 
     if offset:
         query = query.offset(offset)

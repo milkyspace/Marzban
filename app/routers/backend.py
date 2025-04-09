@@ -8,9 +8,11 @@ from app.utils import responses
 from .authentication import check_sudo_admin
 from app.operation import OperatorType
 from app.operation.backend import BackendOperation
+from app.operation.node import NodeOperator
 
 
 backend_operator = BackendOperation(operator_type=OperatorType.API)
+node_operator = NodeOperator(operator_type=OperatorType.API)
 router = APIRouter(tags=["Backend"], prefix="/api/backend", responses={401: responses._401, 403: responses._403})
 
 
@@ -35,6 +37,7 @@ async def get_backend_config(
 @router.put("/{backend_id}", response_model=BackendResponse)
 async def modify_backend_config(
     backend_id: int,
+    restart_nodes: bool,
     modified_backend: BackendCreate,
     admin: AdminDetails = Depends(check_sudo_admin),
     db: AsyncSession = Depends(get_db),
@@ -42,16 +45,27 @@ async def modify_backend_config(
     """Update an existing backend configuration."""
     response = await backend_operator.modify_backend(db, backend_id, modified_backend, admin)
     await hosts_storage.update(db)
+
+    if restart_nodes:
+        await node_operator.restart_all_node(db=db, backend_id=backend_id, admin=admin)
+
     return response
 
 
 @router.delete("/{backend_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_backend_config(
-    backend_id: int, admin: AdminDetails = Depends(check_sudo_admin), db: AsyncSession = Depends(get_db)
+    backend_id: int,
+    restart_nodes: bool = False,
+    admin: AdminDetails = Depends(check_sudo_admin),
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete a backend configuration."""
     await backend_operator.delete_backend(db, backend_id, admin)
     await hosts_storage.update(db)
+
+    if restart_nodes:
+        await node_operator.restart_all_node(db=db, backend_id=backend_id, admin=admin)
+
     return {}
 
 
