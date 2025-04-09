@@ -3,10 +3,9 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramNetworkError
-
-from app import get_logger, on_shutdown, on_startup
+from app import on_shutdown, on_startup
+from app.utils.logger import get_logger
 from config import TELEGRAM_API_TOKEN, TELEGRAM_PROXY_URL, TELEGRAM_WEBHOOK_SECRET_KEY, TELEGRAM_WEBHOOK_URL
-
 from .handlers import include_routers
 from .middlewares import setup_middlewares
 
