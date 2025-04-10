@@ -68,8 +68,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if DOCS else None,
 )
 
-scheduler = BackgroundScheduler({"apscheduler.job_defaults.max_instances": 20}, timezone="UTC")
-async_scheduler = AsyncIOScheduler(job_defaults={"max_instances": 20}, timezone="UTC")
+scheduler = AsyncIOScheduler(job_defaults={"max_instances": 20}, timezone="UTC")
 logger = get_logger()
 
 
@@ -105,9 +104,6 @@ def validate_paths():
 
 on_startup(scheduler.start)
 on_shutdown(scheduler.shutdown)
-
-on_startup(async_scheduler.start)
-on_shutdown(async_scheduler.shutdown)
 
 
 @app.exception_handler(RequestValidationError)
