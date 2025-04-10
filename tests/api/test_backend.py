@@ -1,6 +1,5 @@
 from fastapi import status
 from tests.api import client
-from fastapi import status
 
 
 xray_config = {
@@ -307,7 +306,6 @@ xray_config = {
 }
 
 
-
 def test_backend_create(access_token):
     """Test that the backend create route is accessible."""
 
@@ -329,7 +327,6 @@ def test_backend_create(access_token):
 
 
 def test_backend_update(access_token):
-
     """Test that the backend update route is accessible."""
 
     response = client.put(
@@ -361,20 +358,18 @@ def test_backend_get(access_token):
     assert response.json()["config"] == xray_config
 
 
-def test_backend_delete_1():
+def test_backend_delete_1(access_token):
     """Test that the backend delete route is accessible."""
 
-    access_token = test_admin_login()
     response = client.delete(
         url="/api/backend/1", headers={"Authorization": f"Bearer {access_token}"}, params={"restart_nodes": True}
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-def test_backend_delete_2():
+def test_backend_delete_2(access_token):
     """Test that the backend delete route is accessible."""
 
-    access_token = test_admin_login()
     response = client.post(
         url="/api/backend",
         headers={"Authorization": f"Bearer {access_token}"},
