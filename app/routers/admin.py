@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from app import notification
 from app.db import AsyncSession, get_db
@@ -8,7 +8,7 @@ from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.utils import responses
 from app.utils.jwt import create_admin_token
-from .authentication import check_sudo_admin, get_current, validate_admin
+from .authentication import check_sudo_admin, get_current, validate_admin, validate_mini_app_admin
 
 router = APIRouter(tags=["Admin"], prefix="/api/admin", responses={401: responses._401, 403: responses._403})
 admin_operator = AdminOperation(operator_type=OperatorType.API)
@@ -50,6 +50,31 @@ async def admin_token(
     return Token(access_token=await create_admin_token(form_data.username, db_admin.is_sudo))
 
 
+@router.post("/miniapp/token")
+async def admin_mini_app_token(
+    request: Request, x_telegram_authorization: str = Header(), db: AsyncSession = Depends(get_db)
+):
+    """Authenticate an admin and issue a token."""
+
+    client_ip = get_client_ip(request)
+
+    db_admin = await validate_mini_app_admin(db, x_telegram_authorization)
+    if not db_admin:
+        raise HTTPException(
+            status_code=401,
+            detail="admin not found.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if db_admin.is_disabled:
+        raise HTTPException(
+            status_code=403,
+            detail="your account has been disabled",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    asyncio.create_task(notification.admin_login(db_admin.username, "", client_ip, True))
+    return Token(access_token=await create_admin_token(db_admin.username, db_admin.is_sudo))
+
+
 @router.post(
     "",
     response_model=AdminDetails,
@@ -76,7 +101,7 @@ async def modify_admin(
     )
 
 
-@router.delete("/{username}",status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{username}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_admin(
     username: str, db: AsyncSession = Depends(get_db), current_admin: AdminDetails = Depends(check_sudo_admin)
 ):
