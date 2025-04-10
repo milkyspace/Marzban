@@ -573,4 +573,3 @@ class NodeStat(Base):
     cpu_usage: Mapped[float] = mapped_column(unique=False, nullable=False)
     incoming_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
- 

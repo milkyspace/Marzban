@@ -15,10 +15,10 @@ async def get_stat(id: int, node: GozargahNode) -> NodeStat:
         stats = await node.get_system_stats()
     except Exception:
         return
-    
+
     if not stats:
         return
-    
+
     return NodeStat(
         created_at=dt.now(tz.utc),
         node_id=id,

@@ -25,7 +25,7 @@ class NumericValidatorMixin:
             return v
 
         raise ValueError("must be an integer, Decimal or a float, not a string")  # Reject strings
-    
+
     @staticmethod
     def cast_to_float(v):
         """
@@ -47,7 +47,7 @@ class NumericValidatorMixin:
         elif isinstance(v, float):
             return v
 
-        raise ValueError("must be an integer, Decimal or a float, not a string") 
+        raise ValueError("must be an integer, Decimal or a float, not a string")
 
 
 class ListValidator:

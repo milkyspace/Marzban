@@ -1516,7 +1516,7 @@ async def get_node_stats(
 ) -> list[NodeStats]:
     trunc_expr = _build_trunc_expression(period, NodeStat.created_at)
     conditions = [NodeStat.created_at >= start, NodeStat.created_at <= end, NodeStat.node_id == node_id]
-    
+
     stmt = (
         select(
             trunc_expr.label("period_start"),
@@ -1529,10 +1529,10 @@ async def get_node_stats(
         .group_by(trunc_expr)
         .order_by(trunc_expr)
     )
-    
+
     result = await db.execute(stmt)
     rows = result.fetchall()
-    
+
     stats = []
     for row in rows:
         stats.append(
@@ -1545,7 +1545,7 @@ async def get_node_stats(
                 outgoing_bandwidth_speed=float(row.outgoing_bandwidth_speed),
             )
         )
-    
+
     return stats
 
 

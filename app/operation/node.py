@@ -18,7 +18,7 @@ from app.db.crud import (
     get_nodes_usage,
     update_node,
     get_user,
-    get_node_stats
+    get_node_stats,
 )
 from app.db.base import GetDB
 from app.backend import backend_manager
@@ -203,8 +203,10 @@ class NodeOperator(BaseOperator):
             self.raise_error(message=e.detail, code=e.code)
 
         return logs_queue
-    
-    async def get_node_stats_periodic(self, db: AsyncSession, node_id: id, start: str = "", end: str = "", period: Period = Period.hour) -> list[NodeStats]:
+
+    async def get_node_stats_periodic(
+        self, db: AsyncSession, node_id: id, start: str = "", end: str = "", period: Period = Period.hour
+    ) -> list[NodeStats]:
         start, end = self.validate_dates(start, end)
 
         return await get_node_stats(db, node_id, start, end, period=period)

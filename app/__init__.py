@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from fastapi import FastAPI, Request, status
