@@ -33,7 +33,7 @@ async def create_user(query: CallbackQuery, admin: AdminDetails | None, state: F
     await state.set_state(CreateUser.username)
     await query.message.reply(
         "please enter the username",
-        reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+        reply_markup=Cancelkeyboard().as_markup(),
     )
 
 
@@ -43,21 +43,21 @@ async def process_username(message: Message, state: FSMContext, admin: AdminDeta
     if not USERNAME_PATTERN.match(username):
         return await message.reply(
             "❌ Username only can be 3 to 32 characters and contain a-z, A-Z, 0-9, and underscores in between.",
-            reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+            reply_markup=Cancelkeyboard().as_markup(),
         )
     async with GetDB() as db:
         try:
             await user_operations.get_validated_user(db, username, admin)
             await message.reply(
                 "❌ user already exists.",
-                reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+                reply_markup=Cancelkeyboard().as_markup(),
             )
         except ValueError:
             await state.update_data(username=username)
             await state.set_state(CreateUser.data_limit)
             await message.reply(
                 "⬆️ Enter Data Limit (GB):\n⚠️ Send 0 for unlimited.",
-                reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+                reply_markup=Cancelkeyboard().as_markup(),
             )
 
 
@@ -68,18 +68,18 @@ async def process_data_limit(message: Message, state: FSMContext):
         if data_limit < 0:
             return await message.reply(
                 "❌ Data limit must be greater or equal to 0.",
-                reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+                reply_markup=Cancelkeyboard().as_markup(),
             )
     except ValueError:
         return await message.reply(
             "❌ Data limit must be a number.",
-            reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+            reply_markup=Cancelkeyboard().as_markup(),
         )
     await state.update_data(data_limit=data_limit)
     await state.set_state(CreateUser.expire)
     await message.reply(
         "⬆️ Enter Expire Date (YYYY-MM-DD)\nOr You Can Use Regex Symbol: ^[0-9]{1,3}(M|D) :\n⚠️ Send 0 for never expire.",
-        reply_markup=Cancelkeyboard().as_markup(one_time_keyboard=True, resize_keyboard=True),
+        reply_markup=Cancelkeyboard().as_markup(),
     )
 
 
