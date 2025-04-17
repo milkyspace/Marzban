@@ -37,7 +37,7 @@ client_config = {
 }
 
 
-class SubscriptionOperator(BaseOperation):
+class SubscriptionOperation(BaseOperation):
     @staticmethod
     def detect_client_type(user_agent: str) -> str:
         """Detect the appropriate client configuration based on the user agent."""
