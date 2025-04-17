@@ -11,7 +11,7 @@ from app.utils.system import cpu_usage, memory_usage, realtime_bandwidth
 from app.core.manager import core_manager
 
 
-class SystemOperator(BaseOperation):
+class SystemOperation(BaseOperation):
     @staticmethod
     async def get_system_stats(db: AsyncSession, admin: AdminDetails) -> SystemStats:
         """Fetch system stats including memory, CPU, and user metrics."""
