@@ -1,7 +1,8 @@
 import os
 import sys
-import pytest
 import warnings
+
+import pytest
 from pydantic import PydanticDeprecatedSince20
 
 # Add the project root directory to the Python path

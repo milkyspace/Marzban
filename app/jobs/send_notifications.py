@@ -6,7 +6,7 @@ import httpx
 from sqlalchemy import delete
 from fastapi.encoders import jsonable_encoder
 
-from app import on_shutdown, async_scheduler as scheduler
+from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.models import NotificationReminder
 from app.notification.webhook import queue
@@ -116,10 +116,8 @@ async def delete_expired_reminders() -> None:
         # Get current UTC time and convert to naive datetime
         now_utc = dt.now(tz=tz.utc)
         now_naive = now_utc.replace(tzinfo=None)
-        
-        result = await db.execute(
-            delete(NotificationReminder).where(NotificationReminder.expires_at < now_naive)
-        )
+
+        result = await db.execute(delete(NotificationReminder).where(NotificationReminder.expires_at < now_naive))
         logger.info(f"Cleaned up {result.rowcount} expired reminders")
 
 

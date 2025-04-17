@@ -36,8 +36,6 @@ XRAY_JSON = config("XRAY_JSON", default="./xray_config.json")
 XRAY_FALLBACKS_INBOUND_TAGS = config(
     "XRAY_FALLBACKS_INBOUND_TAG", cast=lambda v: [tag.strip() for tag in v.split(",")] if v else [], default=""
 )
-XRAY_EXECUTABLE_PATH = config("XRAY_EXECUTABLE_PATH", default="/usr/local/bin/xray")
-XRAY_ASSETS_PATH = config("XRAY_ASSETS_PATH", default="/usr/local/share/xray")
 XRAY_EXCLUDE_INBOUND_TAGS = config("XRAY_EXCLUDE_INBOUND_TAGS", default="").split()
 XRAY_SUBSCRIPTION_URL_PREFIX = config("XRAY_SUBSCRIPTION_URL_PREFIX", default="").strip("/")
 XRAY_SUBSCRIPTION_PATH = config("XRAY_SUBSCRIPTION_PATH", default="sub").strip("/")
@@ -150,9 +148,17 @@ SUB_PROFILE_TITLE = config("SUB_PROFILE_TITLE", default="Subscription")
 DISCORD_WEBHOOK_URL = config("DISCORD_WEBHOOK_URL", default="")
 
 
+# due to high amout of data this job is only available for postgresql and timescaledb
+if SQLALCHEMY_DATABASE_URL.startswith("postgresql"):
+    ENABLE_RECORDING_NODES_STATS = config("ENABLE_RECORDING_NODES_STATS", cast=bool, default=False)
+else:
+    ENABLE_RECORDING_NODES_STATS = False
+
 # Interval jobs, all values are in seconds
 JOB_CORE_HEALTH_CHECK_INTERVAL = config("JOB_CORE_HEALTH_CHECK_INTERVAL", cast=int, default=10)
 JOB_RECORD_NODE_USAGES_INTERVAL = config("JOB_RECORD_NODE_USAGES_INTERVAL", cast=int, default=30)
 JOB_RECORD_USER_USAGES_INTERVAL = config("JOB_RECORD_USER_USAGES_INTERVAL", cast=int, default=10)
 JOB_REVIEW_USERS_INTERVAL = config("JOB_REVIEW_USERS_INTERVAL", cast=int, default=10)
 JOB_SEND_NOTIFICATIONS_INTERVAL = config("JOB_SEND_NOTIFICATIONS_INTERVAL", cast=int, default=30)
+JOB_GHATER_NODES_STATS_INTERVAL = config("JOB_GHATER_NODES_STATS_INTERVAL", cast=int, default=25)
+JOB_REMOVE_OLD_INBOUNDS_INTERVAL = config("JOB_REMOVE_OLD_INBOUNDS_INTERVAL", cast=int, default=600)

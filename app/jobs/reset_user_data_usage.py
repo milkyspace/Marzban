@@ -1,14 +1,15 @@
 import asyncio
 from datetime import datetime as dt, timedelta as td, timezone as tz
 
-from app import logger, async_scheduler as scheduler
+from app import scheduler
 from app.db import GetDB, crud
 from app.db.models import UserStatus, UserDataLimitResetStrategy, User
 from app.models.user import UserResponse
 from app import notification
-from app.backend import config
+from app.core.manager import core_manager
 from app.node import node_manager
 from app.jobs.dependencies import SYSTEM_ADMIN
+from app.utils.logger import get_logger
 
 reset_strategy_to_days = {
     UserDataLimitResetStrategy.day.value: 1,
@@ -16,6 +17,8 @@ reset_strategy_to_days = {
     UserDataLimitResetStrategy.month.value: 30,
     UserDataLimitResetStrategy.year.value: 365,
 }
+
+logger = get_logger("jobs")
 
 
 async def reset_user_data_usage():
@@ -40,7 +43,7 @@ async def reset_user_data_usage():
 
             # make user active if limited on usage reset
             if user.status == UserStatus.active:
-                asyncio.create_task(node_manager.update_user(user=user, inbounds=config.inbounds))
+                asyncio.create_task(node_manager.update_user(user=user, inbounds=await core_manager.get_inbounds()))
 
             logger.info(f'User data usage reset for User "{user.username}"')
 

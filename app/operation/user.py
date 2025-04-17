@@ -1,10 +1,10 @@
 import asyncio
 import secrets
-from datetime import datetime as dt
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.exc import IntegrityError
 
-from app.backend import config
+from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud import (
     create_user,
@@ -26,7 +26,16 @@ from app.db.crud import (
 from app.db.models import User, UserStatus
 from app.models.stats import UserUsageStats, Period
 from app.models.admin import AdminDetails
-from app.models.user import UserCreate, UserModify, UserResponse, UsersResponse, RemoveUsersResponse
+from app.models.user import (
+    CreateUserFromTemplate,
+    ModifyUserByTemplate,
+    UserCreate,
+    UserModify,
+    UserResponse,
+    UsersResponse,
+    RemoveUsersResponse,
+)
+from app.models.user_template import UserTemplateResponse
 from app.node import node_manager as node_manager
 from app.operation import BaseOperator
 from app.utils.logger import get_logger
@@ -65,12 +74,11 @@ class UserOperator(BaseOperator):
         try:
             db_user = await create_user(db, new_user, all_groups, db_admin)
         except IntegrityError:
-            await db.rollback()
-            self.raise_error(message="User already exists", code=409)
+            await self.raise_error(message="User already exists", code=409, db=db)
 
         user = await self.validate_user(db_user)
 
-        asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+        asyncio.create_task(node_manager.update_user(user, inbounds=await core_manager.get_inbounds()))
         asyncio.create_task(notification.create_user(user, admin))
 
         logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
@@ -93,7 +101,7 @@ class UserOperator(BaseOperator):
         user = await self.validate_user(db_user)
 
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=await core_manager.get_inbounds()))
         else:
             asyncio.create_task(node_manager.remove_user(user))
 
@@ -128,7 +136,7 @@ class UserOperator(BaseOperator):
         db_user = await reset_user_data_usage(db=db, db_user=db_user)
         user = await self.validate_user(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=await core_manager.get_inbounds()))
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -145,7 +153,7 @@ class UserOperator(BaseOperator):
         db_user = await revoke_user_sub(db=db, db_user=db_user)
         user = await self.validate_user(db_user)
         if db_user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=await core_manager.get_inbounds()))
 
         asyncio.create_task(notification.user_subscription_revoked(user, admin))
 
@@ -163,7 +171,7 @@ class UserOperator(BaseOperator):
         db_user = await self.get_validated_user(db, username, admin)
 
         if db_user is None or db_user.next_plan is None:
-            self.raise_error(message="User doesn't have next plan", code=404)
+            await self.raise_error(message="User doesn't have next plan", code=404)
 
         old_status = db_user.status
 
@@ -171,7 +179,7 @@ class UserOperator(BaseOperator):
 
         user = await self.validate_user(db_user)
         if user.status in (UserStatus.active, UserStatus.on_hold):
-            asyncio.create_task(node_manager.update_user(user, inbounds=config.inbounds))
+            asyncio.create_task(node_manager.update_user(user, inbounds=await core_manager.get_inbounds()))
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -205,7 +213,7 @@ class UserOperator(BaseOperator):
         period: Period = Period.hour,
         node_id: int | None = None,
     ) -> list[UserUsageStats]:
-        start, end = self.validate_dates(start, end)
+        start, end = await self.validate_dates(start, end)
         db_user = await self.get_validated_user(db, username, admin)
 
         return await get_user_usages(db, db_user.id, start, end, period, node_id)
@@ -236,7 +244,7 @@ class UserOperator(BaseOperator):
                     enum_member = UsersSortingOptions[opt]
                     sort_list.append(enum_member.value)
                 except KeyError:
-                    self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
+                    await self.raise_error(message=f'"{opt}" is not a valid sort option', code=400)
 
         users, count = await get_users(
             db=db,
@@ -267,7 +275,7 @@ class UserOperator(BaseOperator):
         node_id: int | None = None,
     ) -> list[UserUsageStats]:
         """Get all users usage"""
-        start, end = self.validate_dates(start, end)
+        start, end = await self.validate_dates(start, end)
 
         return await get_all_users_usages(
             db=db,
@@ -284,7 +292,11 @@ class UserOperator(BaseOperator):
             logger.info(f'User "{user}" deleted by admin "{by}"')
 
     async def get_expired_users(
-        self, db: AsyncSession, admin: AdminDetails, expired_after: dt | None = None, expired_before: dt | None = None
+        self,
+        db: AsyncSession,
+        admin: AdminDetails,
+        expired_after: datetime | None = None,
+        expired_before: datetime | None = None,
     ) -> list[str]:
         """
         Get users who have expired within the specified date range.
@@ -295,7 +307,7 @@ class UserOperator(BaseOperator):
         - If both are omitted, returns all expired users
         """
 
-        expired_after, expired_before = self.validate_dates(expired_after, expired_before)
+        expired_after, expired_before = await self.validate_dates(expired_after, expired_before)
         if not admin.is_sudo:
             id = (await self.get_validated_admin(db, admin.username)).id
         else:
@@ -304,7 +316,11 @@ class UserOperator(BaseOperator):
         return [row.username for row in users]
 
     async def delete_expired_users(
-        self, db: AsyncSession, admin: AdminDetails, expired_after: dt | None = None, expired_before: dt | None = None
+        self,
+        db: AsyncSession,
+        admin: AdminDetails,
+        expired_after: datetime | None = None,
+        expired_before: datetime | None = None,
     ) -> RemoveUsersResponse:
         """
         Delete users who have expired within the specified date range.
@@ -314,7 +330,7 @@ class UserOperator(BaseOperator):
         - At least one of expired_after or expired_before must be provided
         """
 
-        expired_after, expired_before = self.validate_dates(expired_after, expired_before)
+        expired_after, expired_before = await self.validate_dates(expired_after, expired_before)
         if not admin.is_sudo:
             id = (await self.get_validated_admin(db, admin.username)).id
         else:
@@ -326,3 +342,62 @@ class UserOperator(BaseOperator):
         asyncio.create_task(self.remove_users_logger(users=username_list, by=admin.username))
 
         return RemoveUsersResponse(users=username_list, count=len(username_list))
+
+    async def create_user_from_template(
+        self, db: AsyncSession, new_template_user: CreateUserFromTemplate, admin: AdminDetails
+    ) -> UserResponse:
+        db_user_template = await self.get_validated_user_template(db, new_template_user.user_template_id)
+
+        user_template = UserTemplateResponse.model_validate(db_user_template)
+
+        new_user_args = {
+            "username": f"{user_template.username_prefix if user_template.username_prefix else ''}{new_template_user.username}{user_template.username_suffix if user_template.username_suffix else ''}",
+            **user_template.model_dump(
+                exclude={
+                    "extra_settings",
+                    "next_plan",
+                }
+            ),
+        }
+        if user_template.status == UserStatus.active:
+            new_user_args["expire"] = (
+                (datetime.now(UTC) + timedelta(seconds=user_template.expire_duration))
+                if user_template.expire_duration
+                else None
+            )
+        else:
+            new_user_args["on_hold_expire_duration"] = user_template.expire_duration
+
+        new_user = UserCreate(**new_user_args)
+
+        return await self.add_user(db, new_user, admin)
+
+    async def modify_user_by_user_template(
+        self, db: AsyncSession, username: str, modified_template: ModifyUserByTemplate, admin: AdminDetails
+    ) -> UserResponse:
+        db_user_template = await self.get_validated_user_template(db, modified_template.user_template_id)
+        user_template = UserTemplateResponse.model_validate(db_user_template)
+
+        modify_user_args = {
+            **user_template.model_dump(
+                exclude={
+                    "extra_settings",
+                    "next_plan",
+                }
+            ),
+        }
+        if user_template.status == UserStatus.active:
+            modify_user_args["expire"] = (
+                (datetime.now(UTC) + timedelta(seconds=user_template.expire_duration))
+                if user_template.expire_duration
+                else None
+            )
+        else:
+            modify_user_args["on_hold_expire_duration"] = user_template.expire_duration
+
+        update_user_model = UserModify(**modify_user_args)
+
+        user = await self.modify_user(db, username, update_user_model, admin)
+        if user_template.reset_usages:
+            return await self.reset_user_data_usage(db, username, admin)
+        return user

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { HostResponse, modifyHosts, CreateHost, addHost, modifyHost, XHttpModes, GRPCSettings, KCPSettings, TcpSettings, WebSocketSettings, XHttpSettingsOutput } from "@/service/api"
+import { BaseHost, modifyHosts, CreateHost, addHost } from "@/service/api"
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from "@dnd-kit/sortable"
 import SortableHost from "./SortableHost"
@@ -13,11 +13,6 @@ import { toast } from "@/hooks/use-toast"
 import useDirDetection from "@/hooks/use-dir-detection"
 import { useTranslation } from "react-i18next"
 
-const MultiplexProtocol = {
-    smux: 'smux',
-    yamux: 'yamux',
-    h2mux: 'h2mux',
-} as const;
 interface Brutal {
     up_mbps: number;
     down_mbps: number;
@@ -30,7 +25,7 @@ interface XrayMuxSettings {
 }
 
 interface SingBoxMuxSettings {
-    protocol: string | null;
+    protocol: string | null | undefined;
     max_connections: number | null;
     max_streams: number | null;
     min_streams: number | null;
@@ -39,7 +34,7 @@ interface SingBoxMuxSettings {
 }
 
 interface ClashMuxSettings {
-    protocol: string | null;
+    protocol: string | null | undefined;
     max_connections: number | null;
     max_streams: number | null;
     min_streams: number | null;
@@ -56,6 +51,7 @@ interface MuxSettings {
 }
 
 export interface HostFormValues {
+    id?: number;
     remark: string;
     address: string;
     port: number;
@@ -97,6 +93,7 @@ export interface HostFormValues {
             sc_min_posts_interval_ms?: string;
             sc_max_buffered_posts?: string;
             sc_stream_up_server_secs?: string;
+            download_settings?: number;
             xmux?: {
                 max_concurrency?: string;
                 max_connections?: string;
@@ -146,49 +143,78 @@ export interface HostFormValues {
 // Update the transport settings schema
 const transportSettingsSchema = z.object({
     xhttp_settings: z.object({
-        mode: z.enum(["auto", "packet-up", "stream-up", "stream-one"]).nullish(),
-        no_grpc_header: z.boolean().nullish(),
-        x_padding_bytes: z.string().nullish(),
-        sc_max_each_post_bytes: z.string().nullish(),
-        sc_min_posts_interval_ms: z.string().nullish(),
-        sc_max_buffered_posts: z.string().nullish(),
-        sc_stream_up_server_secs: z.string().nullish()
-    }).nullish(),
+        mode: z.enum(["auto", "packet-up", "stream-up", "stream-one"]).nullish().optional(),
+        no_grpc_header: z.boolean().nullish().optional(),
+        x_padding_bytes: z.string().nullish().optional(),
+        sc_max_each_post_bytes: z.string().nullish().optional(),
+        sc_min_posts_interval_ms: z.string().nullish().optional(),
+        sc_max_buffered_posts: z.string().nullish().optional(),
+        sc_stream_up_server_secs: z.string().nullish().optional(),
+        download_settings: z.number().nullish().optional(),
+        xmux: z.object({
+            max_concurrency: z.string().nullish().optional(),
+            max_connections: z.string().nullish().optional(),
+            c_max_reuse_times: z.string().nullish().optional(),
+            c_max_lifetime: z.string().nullish().optional(),
+            h_max_request_times: z.string().nullish().optional(),
+            h_keep_alive_period: z.string().nullish().optional()
+        }).nullish().optional()
+    }).nullish().optional(),
     grpc_settings: z.object({
-        multi_mode: z.boolean().nullish(),
-        idle_timeout: z.number().nullish(),
-        health_check_timeout: z.number().nullish(),
-        permit_without_stream: z.number().nullish(),
-        initial_windows_size: z.number().nullish()
-    }).nullish(),
+        multi_mode: z.boolean().nullish().optional(),
+        idle_timeout: z.number().nullish().optional(),
+        health_check_timeout: z.number().nullish().optional(),
+        permit_without_stream: z.number().nullish().optional(),
+        initial_windows_size: z.number().nullish().optional()
+    }).nullish().optional(),
     kcp_settings: z.object({
-        header: z.string().nullish(),
-        mtu: z.number().nullish(),
-        tti: z.number().nullish(),
-        uplink_capacity: z.number().nullish(),
-        downlink_capacity: z.number().nullish(),
-        congestion: z.number().nullish(),
-        read_buffer_size: z.number().nullish(),
-        write_buffer_size: z.number().nullish()
-    }).nullish(),
+        header: z.string().nullish().optional(),
+        mtu: z.number().nullish().optional(),
+        tti: z.number().nullish().optional(),
+        uplink_capacity: z.number().nullish().optional(),
+        downlink_capacity: z.number().nullish().optional(),
+        congestion: z.number().nullish().optional(),
+        read_buffer_size: z.number().nullish().optional(),
+        write_buffer_size: z.number().nullish().optional()
+    }).nullish().optional(),
     tcp_settings: z.object({
-        header: z.string().nullish(),
+        header: z.enum(['none', 'http']).nullish().optional(),
         request: z.object({
-            version: z.string().nullish(),
-            method: z.string().nullish(),
-            headers: z.record(z.array(z.string())).nullish()
-        }).nullish(),
+            version: z.enum(['1.0', '1.1', '2.0', '3.0']).nullish().optional(),
+            method: z.enum([
+                'GET', 'POST', 'PUT', 'DELETE', 'HEAD', 
+                'OPTIONS', 'PATCH', 'TRACE', 'CONNECT'
+            ]).nullish().optional(),
+            headers: z.record(z.array(z.string())).nullish().optional()
+        }).nullish().optional(),
         response: z.object({
-            version: z.string().nullish(),
-            status: z.string().nullish(),
-            reason: z.string().nullish(),
-            headers: z.record(z.array(z.string())).nullish()
-        }).nullish()
-    }).nullish(),
+            version: z.enum(['1.0', '1.1', '2.0', '3.0']).nullish().optional(),
+            status: z.string().regex(/^[1-5]\d{2}$/).nullish().optional(),
+            reason: z.enum([
+                'Continue', 'Switching Protocols', 'OK', 'Created', 'Accepted',
+                'Non-Authoritative Information', 'No Content', 'Reset Content',
+                'Partial Content', 'Multiple Choices', 'Moved Permanently',
+                'Found', 'See Other', 'Not Modified', 'Use Proxy',
+                'Temporary Redirect', 'Permanent Redirect', 'Bad Request',
+                'Unauthorized', 'Payment Required', 'Forbidden', 'Not Found',
+                'Method Not Allowed', 'Not Acceptable', 'Proxy Authentication Required',
+                'Request Timeout', 'Conflict', 'Gone', 'Length Required',
+                'Precondition Failed', 'Payload Too Large', 'URI Too Long',
+                'Unsupported Media Type', 'Range Not Satisfiable', 'Expectation Failed',
+                'I\'m a teapot', 'Misdirected Request', 'Unprocessable Entity',
+                'Locked', 'Failed Dependency', 'Too Early', 'Upgrade Required',
+                'Precondition Required', 'Too Many Requests',
+                'Request Header Fields Too Large', 'Unavailable For Legal Reasons',
+                'Internal Server Error', 'Not Implemented', 'Bad Gateway',
+                'Service Unavailable', 'Gateway Timeout', 'HTTP Version Not Supported'
+            ]).nullish().optional(),
+            headers: z.record(z.array(z.string())).nullish().optional()
+        }).nullish().optional(),
+    }).nullish().optional(),
     websocket_settings: z.object({
-        heartbeatPeriod: z.number().nullish()
-    }).nullish()
-}).nullish();
+        heartbeatPeriod: z.number().nullish().optional()
+    }).nullish().optional()
+}).nullish().optional();
 
 export const HostFormSchema = z.object({
     remark: z.string().min(1, "Remark is required"),
@@ -200,9 +226,9 @@ export const HostFormSchema = z.object({
     sni: z.string().default(""),
     path: z.string().default(""),
     http_headers: z.record(z.string()).default({}),
-    security: z.enum(["inbound_default", "tls", "reality"]).default("inbound_default"),
-    alpn: z.string().default("default"),
-    fingerprint: z.string().default("default"),
+    security: z.enum(["inbound_default", "tls", "none"]).default("inbound_default"),
+    alpn: z.string().default(""),
+    fingerprint: z.string().default(""),
     allowinsecure: z.boolean().default(false),
     random_user_agent: z.boolean().default(false),
     use_sni_as_host: z.boolean().default(false),
@@ -210,47 +236,47 @@ export const HostFormSchema = z.object({
     is_disabled: z.boolean().default(false),
     fragment_settings: z.object({
         xray: z.object({
-            fragments: z.array(z.object({
-                interval: z.string(),
-                length: z.string(),
-                times: z.string()
-            }))
+            packets: z.string().optional(),
+            length: z.string().optional(),
+            interval: z.string().optional()
         }).optional()
     }).optional(),
     noise_settings: z.object({
-        xray: z.object({
-            type: z.string()
-        }).optional()
+        xray: z.array(z.object({
+            type: z.string().regex(/^(?:rand|str|base64|hex)$/).optional(),
+            packet: z.string().optional(),
+            delay: z.string().regex(/^\d{1,16}(-\d{1,16})?$/).optional()
+        })).optional()
     }).optional(),
     mux_settings: z.object({
         xray: z.object({
-            concurrency: z.number().nullable(),
-            xudp_concurrency: z.number().nullable(),
-            xudp_proxy_443: z.string()
+            concurrency: z.number().nullable().optional(),
+            xudp_concurrency: z.number().nullable().optional(),
+            xudp_proxy_443: z.enum(["reject", "allow", "skip"]).nullable().optional()
         }).optional(),
         sing_box: z.object({
-            protocol: z.string().nullable(),
-            max_connections: z.number().nullable(),
-            max_streams: z.number().nullable(),
-            min_streams: z.number().nullable(),
-            padding: z.boolean().nullable(),
+            protocol: z.enum(["none", "smux", "yamux", "h2mux"]).optional(),
+            max_connections: z.number().nullable().optional(),
+            max_streams: z.number().nullable().optional(),
+            min_streams: z.number().nullable().optional(),
+            padding: z.boolean().nullable().optional(),
             brutal: z.object({
-                up_mbps: z.number(),
-                down_mbps: z.number()
-            }).nullable()
+                up_mbps: z.number().nullable().optional(),
+                down_mbps: z.number().nullable().optional()
+            }).nullable().optional()
         }).optional(),
         clash: z.object({
-            protocol: z.string().nullable(),
-            max_connections: z.number().nullable(),
-            max_streams: z.number().nullable(),
-            min_streams: z.number().nullable(),
-            padding: z.boolean().nullable(),
+            protocol: z.enum(["none", "smux", "yamux", "h2mux"]).optional(),
+            max_connections: z.number().nullable().optional(),
+            max_streams: z.number().nullable().optional(),
+            min_streams: z.number().nullable().optional(),
+            padding: z.boolean().nullable().optional(),
             brutal: z.object({
-                up_mbps: z.number(),
-                down_mbps: z.number()
-            }).nullable(),
-            statistic: z.boolean().nullable(),
-            only_tcp: z.boolean().nullable()
+                up_mbps: z.number().nullable().optional(),
+                down_mbps: z.number().nullable().optional()
+            }).nullable().optional(),
+            statistic: z.boolean().nullable().optional(),
+            only_tcp: z.boolean().nullable().optional()
         }).optional()
     }).optional(),
     transport_settings: transportSettingsSchema
@@ -268,118 +294,28 @@ const initialDefaultValues: HostFormValues = {
     path: "",
     http_headers: {},
     security: "inbound_default",
-    alpn: "default",
-    fingerprint: "default",
+    alpn: "",
+    fingerprint: "",
     allowinsecure: false,
     is_disabled: false,
     random_user_agent: false,
     use_sni_as_host: false,
     priority: 0,
-    fragment_settings: {
-        xray: {
-            packets: "",
-            length: "",
-            interval: ""
-        }
-    },
-    noise_settings: {
-        xray: [{
-            type: "",
-            packet: "",
-            delay: ""
-        }]
-    },
-    mux_settings: {
-        xray: {
-            concurrency: null,
-            xudp_concurrency: null,
-            xudp_proxy_443: "reject"
-        },
-        sing_box: {
-            protocol: null,
-            max_connections: 0,
-            max_streams: 0,
-            min_streams: 0,
-            padding: false,
-            brutal: null
-        },
-        clash: {
-            protocol: null,
-            max_connections: 0,
-            max_streams: 0,
-            min_streams: 0,
-            padding: false,
-            brutal: null,
-            statistic: false,
-            only_tcp: false
-        }
-    },
-    transport_settings: {
-        xhttp_settings: {
-            mode: "auto",
-            no_grpc_header: false,
-            x_padding_bytes: "",
-            sc_max_each_post_bytes: "",
-            sc_min_posts_interval_ms: "",
-            sc_max_buffered_posts: "",
-            sc_stream_up_server_secs: "",
-            xmux: {
-                max_concurrency: "",
-                max_connections: "",
-                c_max_reuse_times: "",
-                c_max_lifetime: "",
-                h_max_request_times: "",
-                h_keep_alive_period: ""
-            }
-        },
-        grpc_settings: {
-            multi_mode: false,
-            idle_timeout: 0,
-            health_check_timeout: 0,
-            permit_without_stream: 0,
-            initial_windows_size: 0
-        },
-        kcp_settings: {
-            header: "none",
-            mtu: 0,
-            tti: 0,
-            uplink_capacity: 0,
-            downlink_capacity: 0,
-            congestion: 0,
-            read_buffer_size: 0,
-            write_buffer_size: 0
-        },
-        tcp_settings: {
-            header: "",
-            request: {
-                version: "",
-                headers: {},
-                method: ""
-            },
-            response: {
-                version: "",
-                headers: {},
-                status: "",
-                reason: ""
-            }
-        },
-        websocket_settings: {
-            heartbeatPeriod: 0
-        }
-    }
+    fragment_settings: undefined
 };
 
 export interface HostsProps {
-    data: HostResponse[];
+    data: BaseHost[];
     isDialogOpen: boolean;
     onDialogOpenChange: (open: boolean) => void;
     onAddHost: (open: boolean) => void;
+    onSubmit: (data: HostFormValues) => Promise<{ status: number }>;
 }
 
-export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
-    const [hosts, setHosts] = useState<HostResponse[] | undefined>();
-    const [editingHost, setEditingHost] = useState<HostResponse | null>(null);
-    const [debouncedHosts, setDebouncedHosts] = useState<HostResponse[] | undefined>([]);
+export default function Hosts({ data, onAddHost, isDialogOpen, onSubmit }: HostsProps) {
+    const [hosts, setHosts] = useState<BaseHost[] | undefined>();
+    const [editingHost, setEditingHost] = useState<BaseHost | null>(null);
+    const [debouncedHosts, setDebouncedHosts] = useState<BaseHost[] | undefined>([]);
     const dir = useDirDetection();
     const { t } = useTranslation();
 
@@ -391,14 +327,14 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
 
     useEffect(() => {
         setHosts(data ?? [])
-    }, [data])    
+    }, [data])
 
     const form = useForm<HostFormValues>({
         resolver: zodResolver(HostFormSchema),
         defaultValues: initialDefaultValues,
     });
 
-    const handleEdit = (host: HostResponse) => {
+    const handleEdit = (host: BaseHost) => {
         const formData: HostFormValues = {
             remark: host.remark || "",
             address: host.address || "",
@@ -410,12 +346,12 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
             path: host.path || "",
             http_headers: host.http_headers || {},
             security: host.security || "inbound_default",
-            alpn: host.alpn || "default",
-            fingerprint: host.fingerprint || "default",
+            alpn: host.alpn || "",
+            fingerprint: host.fingerprint || "",
             allowinsecure: host.allowinsecure || false,
             random_user_agent: host.random_user_agent || false,
             use_sni_as_host: host.use_sni_as_host || false,
-            priority: host.priority ? Number(host.priority) : (hosts?.length ?? 0),
+            priority: host.priority || 0,
             is_disabled: host.is_disabled || false,
             fragment_settings: host.fragment_settings ? {
                 xray: host.fragment_settings.xray ?? undefined
@@ -456,7 +392,8 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
                     sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                     sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                     sc_max_buffered_posts: host.transport_settings.xhttp_settings.sc_max_buffered_posts ?? undefined,
-                    sc_stream_up_server_secs: host.transport_settings.xhttp_settings.sc_stream_up_server_secs ?? undefined
+                    sc_stream_up_server_secs: host.transport_settings.xhttp_settings.sc_stream_up_server_secs ?? undefined,
+                    download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined
                 } : undefined,
                 grpc_settings: host.transport_settings.grpc_settings ? {
                     multi_mode: host.transport_settings.grpc_settings.multi_mode === null ? undefined : !!host.transport_settings.grpc_settings.multi_mode,
@@ -499,17 +436,17 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
         onAddHost(true);
     };
 
-    const handleDuplicate = async (host: HostResponse) => {
+    const handleDuplicate = async (host: BaseHost) => {
         if (!host) return;
-        
+
         try {
             // Find all hosts with priorities equal to or less than the host being duplicated
             // Get the host's index in the sorted array
             const sortedHosts = [...(hosts ?? [])].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
             const hostIndex = sortedHosts.findIndex(h => h.id === host.id);
-            
+
             if (hostIndex === -1) return;
-            
+
             // Find the next host's priority
             let newPriority: number;
             if (hostIndex === sortedHosts.length - 1) {
@@ -520,30 +457,30 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
                 // Always use an integer value
                 const nextHostPriority = sortedHosts[hostIndex + 1].priority ?? hostIndex + 1;
                 const currentPriority = host.priority ?? 0;
-                
+
                 if (nextHostPriority > currentPriority + 1) {
                     // If there's space between priorities, simply add 1
                     newPriority = currentPriority + 1;
                 } else {
                     // Otherwise increment all priorities after this host
                     newPriority = currentPriority + 1;
-                    
+
                     // Update all hosts after this one to have higher priorities
                     const hostsToUpdate = sortedHosts.slice(hostIndex + 1).map(h => ({
-                        ...h, 
+                        ...h,
                         priority: (h.priority ?? 0) + 1
                     }));
-                    
+
                     if (hostsToUpdate.length > 0) {
                         // Update priorities in batch
                         modifyHosts(hostsToUpdate);
                     }
                 }
             }
-            
+
             // Create duplicate with new priority and slightly modified name
             const newHost: CreateHost = {
-            ...host, 
+                ...host,
                 id: undefined, // Remove ID so a new one is generated
                 remark: `${host.remark || ""} (copy)`,
                 priority: newPriority,
@@ -551,24 +488,22 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
                 alpn: host.alpn === "" ? undefined : host.alpn,
                 fingerprint: host.fingerprint === "" ? undefined : host.fingerprint,
             };
-            
+
             await addHost(newHost);
-            
+
             // Show success toast
             toast({
                 dir,
                 description: t("host.duplicateSuccess", { name: host.remark || "" }),
                 defaultValue: `Host "${host.remark || ""}" duplicated successfully`
             });
-            
+
             // Refresh the hosts data
             queryClient.invalidateQueries({
                 queryKey: ["getGetHostsQueryKey"],
             });
-            
+
         } catch (error) {
-            console.error('Error duplicating host:', error);
-            
             // Show error toast
             toast({
                 dir,
@@ -579,146 +514,54 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
         }
     };
 
-    const onSubmit = async (data: HostFormValues) => {
-        try {
-            // Helper function to recursively remove empty objects, arrays, or default values
-            const cleanEmptyValues = (obj: any, preserveZeroValues: boolean = false): any => {
-                if (obj === null || obj === undefined) return undefined;
-                
-                // If it's an array, filter out empty items
-                if (Array.isArray(obj)) {
-                    const filteredArray = obj.map(item => cleanEmptyValues(item, preserveZeroValues)).filter(item => item !== undefined);
-                    return filteredArray.length > 0 ? filteredArray : undefined;
-                }
-                
-                // If it's an object, recursively clean it
-                if (typeof obj === 'object') {
-                    const cleaned: Record<string, any> = {};
-                    let hasValues = false;
-                    
-                    for (const key in obj) {
-                        const value = cleanEmptyValues(obj[key], preserveZeroValues);
-                        if (value !== undefined) {
-                            cleaned[key] = value;
-                            hasValues = true;
-                        }
-                    }
-                    
-                    return hasValues ? cleaned : undefined;
-                }
-                
-                // For strings, return undefined if empty or just whitespace
-                if (typeof obj === 'string' && obj.trim() === '') return undefined;
-                
-                // For numbers, return undefined if 0 (default), unless preserveZeroValues is true
-                if (typeof obj === 'number' && obj === 0 && !preserveZeroValues) return undefined;
-                
-                // For booleans, return undefined if false (default)
-                if (typeof obj === 'boolean' && obj === false) return undefined;
-                
-                // Otherwise return the value
-                return obj;
-            };
-            
-            // Special cleaner for transport settings to only include sections that have values
-            const cleanTransportSettings = (settings: any) => {
-                if (!settings) return undefined;
-                
-                const cleaned: Record<string, any> = {};
-                let hasTransportSettings = false;
-                
-                // Clean xhttp_settings
-                if (settings.xhttp_settings) {
-                    const cleanedXhttp = cleanEmptyValues(settings.xhttp_settings);
-                    if (cleanedXhttp) {
-                        cleaned.xhttp_settings = cleanedXhttp;
-                        hasTransportSettings = true;
-                    }
-                }
-                
-                // Clean grpc_settings
-                if (settings.grpc_settings) {
-                    const cleanedGrpc = cleanEmptyValues(settings.grpc_settings);
-                    if (cleanedGrpc) {
-                        cleaned.grpc_settings = cleanedGrpc;
-                        hasTransportSettings = true;
-                    }
-                }
-                
-                // Clean kcp_settings
-                if (settings.kcp_settings) {
-                    const cleanedKcp = cleanEmptyValues(settings.kcp_settings);
-                    if (cleanedKcp) {
-                        cleaned.kcp_settings = cleanedKcp;
-                        hasTransportSettings = true;
-                    }
-                }
-                
-                // Clean tcp_settings
-                if (settings.tcp_settings) {
-                    const cleanedTcp = cleanEmptyValues(settings.tcp_settings);
-                    if (cleanedTcp) {
-                        cleaned.tcp_settings = cleanedTcp;
-                        hasTransportSettings = true;
-                    }
-                }
-                
-                // Clean websocket_settings
-                if (settings.websocket_settings) {
-                    const cleanedWebsocket = cleanEmptyValues(settings.websocket_settings);
-                    if (cleanedWebsocket) {
-                        cleaned.websocket_settings = cleanedWebsocket;
-                        hasTransportSettings = true;
-                    }
-                }
-                
-                return hasTransportSettings ? cleaned : undefined;
-            };
-            
-            // Clean the entire form data
-            const cleanedData = { 
-                ...data,
-                // Always include required fields even if they would be cleaned
-                remark: data.remark,
-                address: data.address,
-                port: data.port, // Always include port
-                inbound_tag: data.inbound_tag,
-                priority: data.priority, // Always include priority
-                
-                // Clean nested objects
-                http_headers: Object.keys(data.http_headers || {}).length > 0 ? data.http_headers : undefined,
-                fragment_settings: cleanEmptyValues(data.fragment_settings),
-                noise_settings: cleanEmptyValues(data.noise_settings),
-                mux_settings: cleanEmptyValues(data.mux_settings),
-                
-                // Apply special cleaning to transport settings
-                transport_settings: cleanTransportSettings(data.transport_settings),
-            };
-            
-            if (editingHost?.id) {
-                // Edit existing host
-                await modifyHost(editingHost.id, {
-                    ...cleanedData,
-                    alpn: cleanedData.alpn === 'default' ? undefined : cleanedData.alpn,
-                    fingerprint: cleanedData.fingerprint === 'default' ? undefined : cleanedData.fingerprint,
-                } as CreateHost);
-            } else {
-                // Add new host
-                const maxPriority = Math.min(...(hosts?.map((h) => h.priority ?? 0) ?? [0]), 0);
-                const newHost = {
-                    ...cleanedData,
-                    priority: maxPriority - 1,
-                    alpn: cleanedData.alpn === 'default' ? undefined : cleanedData.alpn,
-                    fingerprint: cleanedData.fingerprint === 'default' ? undefined : cleanedData.fingerprint,
-                };
-            await addHost(newHost as CreateHost);
+    const cleanEmptyValues = (obj: any) => {
+        if (!obj) return undefined;
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+            if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0) || (typeof value === "object" && Object.keys(value).length === 0)) {
+                continue;
             }
-            setEditingHost(null);
-            form.reset(initialDefaultValues); // Reset to initial values after submit
-            return { status: 200 };
+            if (typeof value === "object") {
+                const cleanedValue = cleanEmptyValues(value);
+                if (cleanedValue !== undefined) {
+                    cleaned[key] = cleanedValue;
+                }
+            } else {
+                cleaned[key] = value;
+            }
+        }
+        return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+    };
+
+    const handleSubmit = async (data: HostFormValues) => {
+        try {
+            // Clean up the data before submission
+            const cleanedData = {
+                ...data,
+                mux_settings: data.mux_settings ? {
+                    xray: data.mux_settings.xray ? {
+                        concurrency: data.mux_settings.xray.concurrency ?? null,
+                        xudp_concurrency: data.mux_settings.xray.xudp_concurrency ?? null,
+                        xudp_proxy_443: data.mux_settings.xray.xudp_proxy_443 ?? "reject"
+                    } : undefined,
+                    sing_box: data.mux_settings.sing_box && data.mux_settings.sing_box.protocol !== "none" ? data.mux_settings.sing_box : undefined,
+                    clash: data.mux_settings.clash && data.mux_settings.clash.protocol !== "none" ? data.mux_settings.clash : undefined
+                } : undefined
+            };
+
+            // Remove mux_settings if it's empty
+            if (cleanedData.mux_settings && 
+                !cleanedData.mux_settings.xray && 
+                !cleanedData.mux_settings.sing_box && 
+                !cleanedData.mux_settings.clash) {
+                delete cleanedData.mux_settings;
+            }
+
+            const response = await onSubmit(cleanedData);
+            return response;
         } catch (error) {
-            console.error('Error managing host:', error);
-            return { status: 500 };
+            console.error("Error submitting form:", error);
+            throw error;
         }
     };
 
@@ -738,7 +581,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
                 const oldIndex = hosts.findIndex((item) => item.id === active.id)
                 const newIndex = hosts.findIndex((item) => item.id === over.id)
                 const reorderedHosts = arrayMove(hosts, oldIndex, newIndex)
-                
+
                 // Update priorities based on new order (lower number = higher priority)
                 return reorderedHosts.map((host, index) => ({
                     ...host,
@@ -759,7 +602,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
     }, [hosts]);
 
     useEffect(() => {
-        if (debouncedHosts) {            
+        if (debouncedHosts) {
             modifyHosts(debouncedHosts)
         }
     }, [debouncedHosts]);
@@ -780,8 +623,8 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
                         <div className="max-w-screen-[2000px] min-h-screen overflow-hidden">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {sortedHosts.map((host) => (
-                                    <SortableHost 
-                                        key={host.id ?? 'new'} 
+                                    <SortableHost
+                                        key={host.id ?? 'new'}
                                         host={host}
                                         onEdit={handleEdit}
                                         onDuplicate={handleDuplicate}
@@ -795,7 +638,7 @@ export default function Hosts({ data, onAddHost, isDialogOpen }: HostsProps) {
 
             <HostModal
                 isDialogOpen={isDialogOpen}
-                onSubmit={onSubmit}
+                onSubmit={handleSubmit}
                 onOpenChange={(open) => {
                     if (!open) {
                         setEditingHost(null);

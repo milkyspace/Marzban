@@ -4,8 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from GozargahNodeBridge import GozargahNode, NodeAPIError
 
 from app.operation import BaseOperator
-from app.models.stats import NodeStats, NodeUsageStats, Period
-from app.models.node import NodeCreate, NodeResponse, NodeSettings, NodeModify
+from app.models.stats import RealtimeNodeStats, NodeUsageStats, Period, NodeStats
+from app.models.node import NodeCreate, NodeResponse, NodeModify
 from app.models.admin import AdminDetails
 from app.db.models import Node, NodeStatus
 from app.db import AsyncSession
@@ -18,23 +18,25 @@ from app.db.crud import (
     get_nodes_usage,
     update_node,
     get_user,
+    get_node_stats,
 )
 from app.db.base import GetDB
-from app.backend import config
-from app.node import get_tls, backend_users, node_manager
+from app.core.manager import core_manager
+from app.node import core_users, node_manager
 from app.utils.logger import get_logger
 from app import notification
 
+
+MAX_MESSAGE_LENGTH = 128
 
 logger = get_logger("node-operator")
 
 
 class NodeOperator(BaseOperator):
-    async def get_node_settings(self) -> NodeSettings:
-        return NodeSettings(certificate=(await get_tls()).certificate)
-
-    async def get_db_nodes(self, db: AsyncSession, offset: int | None, limit: int | None) -> list[NodeResponse]:
-        return await get_nodes(db=db, offset=offset, limit=limit)
+    async def get_db_nodes(
+        self, db: AsyncSession, core_id: int | None = None, offset: int | None = None, limit: int | None = None
+    ) -> list[Node]:
+        return await get_nodes(db=db, core_id=core_id, offset=offset, limit=limit)
 
     @staticmethod
     async def update_node_status(
@@ -65,7 +67,6 @@ class NodeOperator(BaseOperator):
             if status is NodeStatus.connected:
                 asyncio.create_task(notification.connect_node(NodeResponse.model_validate(db_node)))
             if notify_err and status is NodeStatus.error and old_status is not NodeStatus.error:
-                logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}: {err}")
                 asyncio.create_task(notification.error_node(NodeResponse.model_validate(db_node)))
 
     @staticmethod
@@ -85,11 +86,13 @@ class NodeOperator(BaseOperator):
             logger.info(f'Connecting to "{db_node.name}" node')
             await NodeOperator.update_node_status(db_node.id, NodeStatus.connecting)
 
+            core = await core_manager.get_core(db_node.core_config_id if db_node.core_config_id else 1)
+
             try:
                 info = await gozargah_node.start(
-                    config=config.to_json(),
+                    config=core.to_str(),
                     backend_type=0,
-                    users=await backend_users(db=db, inbounds=config.inbounds),
+                    users=await core_users(db=db, inbounds=core.inbounds),
                     keep_alive=db_node.keep_alive,
                     timeout=10,
                 )
@@ -106,16 +109,25 @@ class NodeOperator(BaseOperator):
                 if e.code == -4:
                     return
 
+                detail = e.detail
+
+                if len(detail) > MAX_MESSAGE_LENGTH:
+                    detail = detail[: MAX_MESSAGE_LENGTH - 3] + "..."
+                else:
+                    detail = detail
+
+                logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {detail}")
+
                 await NodeOperator.update_node_status(
-                    node_id=db_node.id, status=NodeStatus.error, err=e.detail, notify_err=notify_err
+                    node_id=db_node.id, status=NodeStatus.error, err=detail, notify_err=notify_err
                 )
 
     async def add_node(self, db: AsyncSession, new_node: NodeCreate, admin: AdminDetails) -> NodeResponse:
+        await self.get_validated_core_config(db, new_node.core_config_id)
         try:
             db_node = await create_node(db, new_node)
         except IntegrityError:
-            await db.rollback()
-            self.raise_error(message=f'Node "{new_node.name}" already exists', code=409)
+            await self.raise_error(message=f'Node "{new_node.name}" already exists', code=409, db=db)
 
         await node_manager.update_node(db_node)
 
@@ -132,17 +144,21 @@ class NodeOperator(BaseOperator):
     async def modify_node(
         self, db: AsyncSession, node_id: Node, modified_node: NodeModify, admin: AdminDetails
     ) -> Node:
-        db_node: Node = await self.get_validated_node(db=db, node_id=node_id)
+        db_node = await self.get_validated_node(db=db, node_id=node_id)
+        await self.get_validated_core_config(db, modified_node.core_config_id)
+
         try:
             db_node = await update_node(db, db_node, modified_node)
         except IntegrityError:
-            await db.rollback()
-            self.raise_error(message=f'Node "{db_node.name}" already exists', code=409)
+            await self.raise_error(message=f'Node "{db_node.name}" already exists', code=409, db=db)
 
         if db_node.status is NodeStatus.disabled:
             await node_manager.remove_node(db_node.id)
         else:
-            await node_manager.update_node(db_node)
+            try:
+                await node_manager.update_node(db_node)
+            except NodeAPIError as e:
+                await self.update_node_status(db_node.id, NodeStatus.error, err=e.detail)
             asyncio.create_task(self.connect_node(node_id=db_node.id))
 
         logger.info(f'Node "{db_node.name}" with id "{db_node.id}" modified by admin "{admin.username}"')
@@ -161,51 +177,59 @@ class NodeOperator(BaseOperator):
 
         logger.info(f'Node "{db_node.name}" with id "{db_node.id}" deleted by admin "{admin.username}"')
 
-        asyncio.create_task(notification.remove_host(db_node, admin.username))
+        asyncio.create_task(notification.remove_node(db_node, admin.username))
 
     async def restart_node(self, node_id: Node, admin: AdminDetails) -> None:
         asyncio.create_task(self.connect_node(node_id))
         logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
 
-    async def restart_all_node(self, db: AsyncSession, admin: AdminDetails) -> None:
-        for db_node in await get_nodes(db=db, enabled=True):
-            await asyncio.create_task(self.connect_node(db_node.id))
-        logger.info(f'All Node\'s restarted by admin "{admin.username}"')
+    async def restart_all_node(self, db: AsyncSession, core_id: int | None, admin: AdminDetails) -> None:
+        nodes: list[Node] = await self.get_db_nodes(db, core_id)
+        await asyncio.gather(*[NodeOperator.connect_node(node.id) for node in nodes])
+
+        logger.info(f'All nodes restarted by admin "{admin.username}"')
 
     async def get_usage(
         self, db: AsyncSession, start: str = "", end: str = "", period: Period = Period.hour, node_id: int | None = None
     ) -> list[NodeUsageStats]:
-        start, end = self.validate_dates(start, end)
+        start, end = await self.validate_dates(start, end)
         return await get_nodes_usage(db, start, end, period=period, node_id=node_id)
 
     async def get_logs(self, node_id: Node) -> asyncio.Queue:
         node = await node_manager.get_node(node_id)
 
         if node is None:
-            self.raise_error(message="Node not found", code=404)
+            await self.raise_error(message="Node not found", code=404)
 
         try:
             logs_queue = await node.get_logs()
         except NodeAPIError as e:
-            self.raise_error(message=e.detail, code=e.code)
+            await self.raise_error(message=e.detail, code=e.code)
 
         return logs_queue
 
-    async def get_node_system_stats(self, node_id: Node) -> NodeStats:
+    async def get_node_stats_periodic(
+        self, db: AsyncSession, node_id: id, start: str = "", end: str = "", period: Period = Period.hour
+    ) -> list[NodeStats]:
+        start, end = await self.validate_dates(start, end)
+
+        return await get_node_stats(db, node_id, start, end, period=period)
+
+    async def get_node_system_stats(self, node_id: Node) -> RealtimeNodeStats:
         node = await node_manager.get_node(node_id)
 
         if node is None:
-            self.raise_error(message="Node not found", code=404)
+            await self.raise_error(message="Node not found", code=404)
 
         try:
             stats = await node.get_system_stats()
         except NodeAPIError as e:
-            self.raise_error(message=e.detail, code=e.code)
+            await self.raise_error(message=e.detail, code=e.code)
 
         if stats is None:
-            self.raise_error(message="Stats not found", code=404)
+            await self.raise_error(message="Stats not found", code=404)
 
-        return NodeStats(
+        return RealtimeNodeStats(
             mem_total=stats.mem_total,
             mem_used=stats.mem_used,
             cpu_cores=stats.cpu_cores,
@@ -214,7 +238,7 @@ class NodeOperator(BaseOperator):
             outgoing_bandwidth_speed=stats.outgoing_bandwidth_speed,
         )
 
-    async def get_nodes_system_stats(self) -> dict[int, NodeStats | None]:
+    async def get_nodes_system_stats(self) -> dict[int, RealtimeNodeStats | None]:
         nodes = await node_manager.get_healthy_nodes()
         stats_tasks = {id: asyncio.create_task(self._get_node_stats_safe(id)) for id, _ in nodes}
 
@@ -229,7 +253,7 @@ class NodeOperator(BaseOperator):
 
         return results
 
-    async def _get_node_stats_safe(self, node_id: Node) -> NodeStats | None:
+    async def _get_node_stats_safe(self, node_id: Node) -> RealtimeNodeStats | None:
         """Wrapper method that returns None instead of raising exceptions"""
         try:
             return await self.get_node_system_stats(node_id)
@@ -240,20 +264,20 @@ class NodeOperator(BaseOperator):
     async def get_user_online_stats_by_node(self, db: AsyncSession, node_id: Node, username: str) -> dict[int, int]:
         db_user = get_user(db, username=username)
         if db_user is None:
-            self.raise_error(message="User not found", code=404)
+            await self.raise_error(message="User not found", code=404)
 
         node = await node_manager.get_node(node_id)
 
         if node is None:
-            self.raise_error(message="Node not found", code=404)
+            await self.raise_error(message="Node not found", code=404)
 
         try:
             stats = await node.get_user_online_stats(email=f"{db_user.id}.{db_user.username}")
         except NodeAPIError as e:
-            self.raise_error(message=e.detail, code=e.code)
+            await self.raise_error(message=e.detail, code=e.code)
 
         if stats is None:
-            self.raise_error(message="Stats not found", code=404)
+            await self.raise_error(message="Stats not found", code=404)
 
         return {node_id: stats.value}
 
@@ -262,20 +286,20 @@ class NodeOperator(BaseOperator):
     ) -> dict[int, dict[str, int]]:
         db_user = get_user(db, username=username)
         if db_user is None:
-            self.raise_error(message="User not found", code=404)
+            await self.raise_error(message="User not found", code=404)
 
         node = await node_manager.get_node(node_id)
 
         if node is None:
-            self.raise_error(message="Node not found", code=404)
+            await self.raise_error(message="Node not found", code=404)
 
         try:
             stats = await node.get_user_online_ip_list(email=f"{db_user.id}.{db_user.username}")
         except NodeAPIError as e:
-            self.raise_error(message=e.detail, code=e.code)
+            await self.raise_error(message=e.detail, code=e.code)
 
         if stats is None:
-            self.raise_error(message="Stats not found", code=404)
+            await self.raise_error(message="Stats not found", code=404)
 
         return {node_id: stats.ips}
 
@@ -283,18 +307,18 @@ class NodeOperator(BaseOperator):
         db_node = await self.get_validated_node(db, node_id=node_id)
 
         if db_node.status != NodeStatus.connected:
-            self.raise_error(message="Node is not connected", code=406)
+            await self.raise_error(message="Node is not connected", code=406)
 
         gozargah_node = await node_manager.get_node(node_id)
         if gozargah_node is None:
-            self.raise_error(message="Node is not connected", code=409)
+            await self.raise_error(message="Node is not connected", code=409)
+
+        core = await core_manager.get_core(db_node.core_config_id or 1)
 
         try:
-            await gozargah_node.sync_users(
-                await backend_users(db=db, inbounds=config.inbounds), flush_queue=flush_users
-            )
+            await gozargah_node.sync_users(await core_users(db=db, inbounds=core.inbounds), flush_queue=flush_users)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
-            self.raise_error(message=e.detail, code=e.code)
+            await self.raise_error(message=e.detail, code=e.code)
 
         return NodeResponse.model_validate(db_node)

@@ -146,7 +146,7 @@ async def activate_all_disabled_users(
     return {}
 
 
-@router.post("/{username}/reset", response_model=AdminDetails)
+@router.post("/{username}/reset", response_model=AdminDetails, responses={404: responses._404})
 async def reset_admin_usage(
     username: str, db: AsyncSession = Depends(get_db), admin: AdminDetails = Depends(check_sudo_admin)
 ):

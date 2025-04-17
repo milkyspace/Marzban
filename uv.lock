@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.12"
 
 [[package]]
@@ -476,7 +475,7 @@ wheels = [
 
 [[package]]
 name = "gozargah-node-bridge"
-version = "0.0.30"
+version = "0.0.33"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiorwlock" },
@@ -849,6 +848,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+    { name = "sqlalchemy-utils" },
     { name = "textual-dev" },
     { name = "watchfiles" },
 ]
@@ -873,7 +873,7 @@ requires-dist = [
     { name = "cryptography", specifier = "==43.0.1" },
     { name = "deprecated", specifier = "==1.2.13" },
     { name = "fastapi", specifier = "==0.115.2" },
-    { name = "gozargah-node-bridge", specifier = ">=0.0.29" },
+    { name = "gozargah-node-bridge", specifier = ">=0.0.33" },
     { name = "httptools", specifier = "==0.6.4" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jdatetime", specifier = "==4.1.1" },
@@ -911,6 +911,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-asyncio", specifier = ">=0.26.0" },
     { name = "ruff", specifier = ">=0.9.7" },
+    { name = "sqlalchemy-utils", specifier = ">=0.41.2" },
     { name = "textual-dev", specifier = ">=1.7.0" },
     { name = "watchfiles", specifier = ">=1.0.4" },
 ]
@@ -1536,6 +1537,18 @@ wheels = [
 [package.optional-dependencies]
 asyncio = [
     { name = "greenlet" },
+]
+
+[[package]]
+name = "sqlalchemy-utils"
+version = "0.41.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sqlalchemy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4d/bf/abfd5474cdd89ddd36dbbde9c6efba16bfa7f5448913eba946fed14729da/SQLAlchemy-Utils-0.41.2.tar.gz", hash = "sha256:bc599c8c3b3319e53ce6c5c3c471120bd325d0071fb6f38a10e924e3d07b9990", size = 138017 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d5/f0/dc4757b83ac1ab853cf222df8535ed73973e0c203d983982ba7b8bc60508/SQLAlchemy_Utils-0.41.2-py3-none-any.whl", hash = "sha256:85cf3842da2bf060760f955f8467b87983fb2e30f1764fd0e24a48307dc8ec6e", size = 93083 },
 ]
 
 [[package]]

@@ -33,9 +33,11 @@ from app.db.models import (
     ReminderType,
     UserStatus,
     UserDataLimitResetStrategy,
+    CoreConfig,
+    NodeStat,
 )
 from app.db.base import DATABASE_DIALECT
-from app.models.stats import Period, UserUsageStats, NodeUsageStats
+from app.models.stats import Period, UserUsageStats, NodeUsageStats, NodeStats
 from app.models.proxy import ProxyTable
 from app.models.host import CreateHost
 from app.models.admin import AdminCreate, AdminModify
@@ -43,6 +45,7 @@ from app.models.group import GroupCreate, GroupModify
 from app.models.node import NodeCreate, NodeModify
 from app.models.user import UserModify, UserCreate
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
+from app.models.core import CoreCreate
 from app.utils.helpers import calculate_expiration_days, calculate_usage_percent
 from config import NOTIFY_DAYS_LEFT, NOTIFY_REACHED_USAGE_PERCENT, USERS_AUTODELETE_DAYS
 
@@ -109,6 +112,37 @@ async def get_or_create_inbound(db: AsyncSession, inbound_tag: str) -> ProxyInbo
         await db.refresh(inbound)
 
     return inbound
+
+
+async def get_inbounds_not_in_tags(db: AsyncSession, excluded_tags: List[str]) -> List[ProxyInbound]:
+    """
+    Get all inbounds where the tag is not in the provided list of tags.
+
+    Args:
+        db: Database session
+        excluded_tags: List of tags to exclude
+
+    Returns:
+        List of ProxyInbound objects not matching any tag in the list
+    """
+    stmt = select(ProxyInbound).where(ProxyInbound.tag.not_in(excluded_tags))
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def remove_inbounds(db: AsyncSession, inbounds: List[ProxyInbound]) -> None:
+    """
+    Remove a list of inbounds from the database.
+
+    Args:
+        db: Database session
+        inbounds: List of ProxyInbound objects to remove
+    """
+    if not inbounds:
+        return
+
+    await asyncio.gather(*[db.delete(inbound) for inbound in inbounds])
+    await db.commit()
 
 
 ProxyHostSortingOptions = Enum(
@@ -1116,7 +1150,7 @@ async def get_tls_certificate(db: AsyncSession) -> TLS:
 
 
 def get_admin_queryset() -> Query:
-    return select(Admin).options(selectinload(Admin.usage_logs))
+    return select(Admin).options(selectinload(Admin.usage_logs), selectinload(Admin.users))
 
 
 async def get_admin(db: AsyncSession, username: str) -> Admin:
@@ -1147,8 +1181,7 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
     db_admin = Admin(**admin.model_dump(exclude={"password"}), hashed_password=admin.hashed_password)
     db.add(db_admin)
     await db.commit()
-    await db.refresh(db_admin)  # Ensure the admin object is refreshed after commit
-    return db_admin
+    return await get_admin(db, admin.username)
 
 
 async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminModify) -> Admin:
@@ -1185,7 +1218,7 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
 
     await db.commit()
     await db.refresh(db_admin)
-    return db_admin
+    return await get_admin(db, db_admin.username)
 
 
 async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
@@ -1272,8 +1305,7 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> int:
     db_admin.users_usage = 0
 
     await db.commit()
-    await db.refresh(db_admin)
-    return db_admin
+    return await get_admin_by_id(db, db_admin.id)
 
 
 def get_user_template_queryset() -> Query:
@@ -1298,7 +1330,9 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
         username_prefix=user_template.username_prefix,
         username_suffix=user_template.username_suffix,
         groups=await get_groups_by_ids(db, user_template.group_ids) if user_template.group_ids else None,
-        extra_settings=user_template.extra_settings,
+        extra_settings=user_template.extra_settings.dict(),
+        status=user_template.status,
+        reset_usages=user_template.reset_usages,
     )
 
     db.add(db_user_template)
@@ -1333,8 +1367,12 @@ async def update_user_template(
         db_user_template.username_suffix = modified_user_template.username_suffix
     if modified_user_template.group_ids:
         db_user_template.groups = await get_groups_by_ids(db, modified_user_template.group_ids)
-    if db_user_template.extra_settings is not None:
-        db_user_template.extra_settings = modified_user_template.extra_settings
+    if modified_user_template.extra_settings is not None:
+        db_user_template.extra_settings = modified_user_template.extra_settings.dict()
+    if modified_user_template.status is not None:
+        db_user_template.status = modified_user_template.status
+    if modified_user_template.reset_usages is not None:
+        db_user_template.reset_usages = modified_user_template.reset_usages
 
     await db.commit()
     await db.refresh(db_user_template)
@@ -1432,7 +1470,8 @@ async def get_node_by_id(db: AsyncSession, node_id: int) -> Optional[Node]:
 async def get_nodes(
     db: AsyncSession,
     status: Optional[Union[NodeStatus, list]] = None,
-    enabled: bool = None,
+    enabled: bool | None = None,
+    core_id: int | None = None,
     offset: int | None = None,
     limit: int | None = None,
 ) -> list[Node]:
@@ -1457,6 +1496,9 @@ async def get_nodes(
 
     if enabled:
         query = query.where(Node.status != NodeStatus.disabled)
+
+    if core_id:
+        query = query.where(Node.core_config_id == core_id)
 
     if offset:
         query = query.offset(offset)
@@ -1505,6 +1547,44 @@ async def get_nodes_usage(
     ]
 
 
+async def get_node_stats(
+    db: AsyncSession, node_id: int, start: datetime, end: datetime, period: Period
+) -> list[NodeStats]:
+    trunc_expr = _build_trunc_expression(period, NodeStat.created_at)
+    conditions = [NodeStat.created_at >= start, NodeStat.created_at <= end, NodeStat.node_id == node_id]
+
+    stmt = (
+        select(
+            trunc_expr.label("period_start"),
+            func.avg(NodeStat.mem_used / NodeStat.mem_total * 100).label("mem_usage_percentage"),
+            func.avg(NodeStat.cpu_usage).label("cpu_usage_percentage"),  # CPU usage is already in percentage
+            func.avg(NodeStat.incoming_bandwidth_speed).label("incoming_bandwidth_speed"),
+            func.avg(NodeStat.outgoing_bandwidth_speed).label("outgoing_bandwidth_speed"),
+        )
+        .where(and_(*conditions))
+        .group_by(trunc_expr)
+        .order_by(trunc_expr)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.fetchall()
+
+    stats = []
+    for row in rows:
+        stats.append(
+            NodeStats(
+                period_start=row.period_start,
+                period=period,
+                mem_usage_percentage=float(row.mem_usage_percentage),
+                cpu_usage_percentage=float(row.cpu_usage_percentage),
+                incoming_bandwidth_speed=float(row.incoming_bandwidth_speed),
+                outgoing_bandwidth_speed=float(row.outgoing_bandwidth_speed),
+            )
+        )
+
+    return stats
+
+
 async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     """
     Creates a new node in the database.
@@ -1516,7 +1596,7 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     Returns:
         Node: The newly created Node object.
     """
-    db_node = Node(**node.model_dump(exclude={"id"}))
+    db_node = Node(**node.model_dump())
 
     db.add(db_node)
     await db.commit()
@@ -1552,7 +1632,7 @@ async def update_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
         Node: The updated Node object.
     """
 
-    node_data = modify.model_dump(exclude={"id"}, exclude_none=True)
+    node_data = modify.model_dump(exclude_none=True)
 
     for key, value in node_data.items():
         setattr(db_node, key, value)
@@ -1723,9 +1803,7 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
 
 def get_group_queryset() -> Query:
     return select(Group).options(
-        selectinload(Group.inbounds),
         selectinload(Group.users),
-        selectinload(Group.templates),
     )
 
 
@@ -1785,8 +1863,12 @@ async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> 
     if limit:
         groups = groups.limit(limit)
 
+    count_query = select(func.count()).select_from(groups.subquery())
+
+    count = (await db.execute(count_query)).scalar_one()
+
     all_groups = (await db.execute(groups)).scalars().all()
-    return all_groups, len(all_groups)
+    return all_groups, count
 
 
 async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Group]:
@@ -1838,3 +1920,100 @@ async def remove_group(db: AsyncSession, dbgroup: Group):
     """
     await db.delete(dbgroup)
     await db.commit()
+
+
+async def get_core_config_by_id(db: AsyncSession, core_id: int) -> CoreConfig | None:
+    """
+    Retrieves a core configuration by its ID.
+
+    Args:
+        db (AsyncSession): The database session.
+        core_id (int): The ID of the core configuration to retrieve.
+
+    Returns:
+        Optional[CoreConfig]: The CoreConfig object if found, None otherwise.
+    """
+    return (await db.execute(select(CoreConfig).where(CoreConfig.id == core_id))).unique().scalar_one_or_none()
+
+
+async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreConfig:
+    """
+    Creates a new core configuration in the database.
+
+    Args:
+        db (AsyncSession): The database session.
+        core_config (CoreCreate): The core configuration creation model containing core details.
+
+    Returns:
+        CoreConfig: The newly created CoreConfig object.
+    """
+    db_core_config = CoreConfig(
+        name=core_config.name,
+        config=core_config.config,
+        exclude_inbound_tags=core_config.exclude_inbound_tags or "",
+        fallbacks_inbound_tags=core_config.fallbacks_inbound_tags or "",
+    )
+    db.add(db_core_config)
+    await db.commit()
+    await db.refresh(db_core_config)
+    return db_core_config
+
+
+async def modify_core_config(
+    db: AsyncSession, db_core_config: CoreConfig, modified_core_config: CoreCreate
+) -> CoreConfig:
+    """
+    Modifies an existing core configuration with new information.
+
+    Args:
+        db (AsyncSession): The database session.
+        db_core_config (CoreConfig): The CoreConfig object to be updated.
+        modified_core_config (CoreCreate): The modification model containing updated core details.
+
+    Returns:
+        CoreConfig: The updated CoreConfig object.
+    """
+    core_data = modified_core_config.model_dump(exclude_none=True)
+
+    for key, value in core_data.items():
+        setattr(db_core_config, key, value)
+
+    await db.commit()
+    await db.refresh(db_core_config)
+    return db_core_config
+
+
+async def remove_core_config(db: AsyncSession, db_core_config: CoreConfig) -> None:
+    """
+    Removes a core configuration from the database.
+
+    Args:
+        db (AsyncSession): The database session.
+        db_core_config (CoreConfig): The CoreConfig object to be removed.
+    """
+    await db.delete(db_core_config)
+    await db.commit()
+
+
+async def get_core_configs(db: AsyncSession, offset: int = None, limit: int = None) -> tuple[int, list[CoreConfig]]:
+    """
+    Retrieves a list of core configurations with optional pagination.
+
+    Args:
+        db (AsyncSession): The database session.
+        offset (int, optional): The number of records to skip (for pagination).
+        limit (int, optional): The maximum number of records to return.
+
+    Returns:
+        tuple: A tuple containing:
+            - list[CoreConfig]: A list of CoreConfig objects
+            - int: The total count of core configurations
+    """
+    query = select(CoreConfig)
+    if offset:
+        query = query.offset(offset)
+    if limit:
+        query = query.limit(limit)
+
+    all_core_configs = (await db.execute(query)).scalars().all()
+    return all_core_configs, len(all_core_configs)

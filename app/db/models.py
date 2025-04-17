@@ -76,6 +76,10 @@ class Admin(Base):
     def lifetime_used_traffic(self) -> int:
         return self.reseted_usage + self.users_usage
 
+    @property
+    def total_users(self) -> int:
+        return len(self.users)
+
 
 class AdminUsageLogs(Base):
     __tablename__ = "admin_usage_logs"
@@ -172,15 +176,15 @@ class User(Base):
 
     def inbounds(self, active_inbounds: list[str]) -> list[str]:
         """Returns a flat list of all included inbound tags across all proxies"""
-        included_tags = []
+        included_tags = set()
         for group in self.groups:
             if group.is_disabled:
                 continue
             tags = group.inbound_tags
             for inbound in active_inbounds:
                 if inbound in tags:
-                    included_tags.append(inbound)
-        return included_tags
+                    included_tags.add(inbound)
+        return list(included_tags)
 
     @property
     def group_ids(self):
@@ -281,6 +285,11 @@ class NextPlan(Base):
     user_template: Mapped[Optional["UserTemplate"]] = relationship(back_populates="next_plans")
 
 
+class UserStatusCreate(str, Enum):
+    active = "active"
+    on_hold = "on_hold"
+
+
 class UserTemplate(Base):
     __tablename__ = "user_templates"
 
@@ -288,9 +297,17 @@ class UserTemplate(Base):
     name: Mapped[str] = mapped_column(String(64), unique=True)
     data_limit: Mapped[int] = mapped_column(BigInteger, default=0)
     expire_duration: Mapped[int] = mapped_column(BigInteger, default=0)  # in seconds
+    on_hold_timeout: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
     username_prefix: Mapped[Optional[str]] = mapped_column(String(20))
     username_suffix: Mapped[Optional[str]] = mapped_column(String(20))
     extra_settings: Mapped[Optional[Dict]] = mapped_column(JSON(True))
+    status: Mapped[UserStatusCreate] = mapped_column(SQLEnum(UserStatusCreate), default=UserStatusCreate.active)
+    reset_usages: Mapped[bool] = mapped_column(default=False, server_default="0")
+    data_limit_reset_strategy: Mapped[UserDataLimitResetStrategy] = mapped_column(
+        SQLEnum(UserDataLimitResetStrategy),
+        default=UserDataLimitResetStrategy.no_reset,
+        server_default="no_reset",
+    )
 
     next_plans: Mapped[List["NextPlan"]] = relationship(back_populates="user_template", cascade="all, delete-orphan")
     groups: Mapped[List["Group"]] = relationship(
@@ -473,6 +490,12 @@ class Node(Base):
     server_ca: Mapped[str] = mapped_column(String(2048), nullable=False)
     keep_alive: Mapped[int] = mapped_column(unique=False, default=0)
     max_logs: Mapped[int] = mapped_column(BigInteger, unique=False, default=1000, server_default=text("1000"))
+    core_config_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("core_configs.id", ondelete="SET NULL"), nullable=True
+    )
+    core_config: Mapped[Optional["CoreConfig"]] = relationship("CoreConfig", lazy="selectin")
+    stats: Mapped[List["NodeStat"]] = relationship(back_populates="node", cascade="all, delete-orphan")
+    api_key: Mapped[str | None] = mapped_column(String(36))
 
 
 class NodeUserUsage(Base):
@@ -538,3 +561,33 @@ class Group(Base):
     @property
     def total_users(self):
         return len(self.users)
+
+
+class CoreConfig(Base):
+    __tablename__ = "core_configs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), unique=False, default=lambda: datetime.now(timezone.utc)
+    )
+    name: Mapped[str] = mapped_column(String(256))
+    config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
+    exclude_inbound_tags: Mapped[Optional[str]] = mapped_column(String(2048))
+    fallbacks_inbound_tags: Mapped[Optional[str]] = mapped_column(String(2048))
+
+
+class NodeStat(Base):
+    __tablename__ = "node_stats"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), unique=False, default=lambda: datetime.now(timezone.utc)
+    )
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
+    node: Mapped["Node"] = relationship(back_populates="stats")
+    mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
+    mem_used: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
+    cpu_cores: Mapped[int] = mapped_column(unique=False, nullable=False)
+    cpu_usage: Mapped[float] = mapped_column(unique=False, nullable=False)
+    incoming_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
+    outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)

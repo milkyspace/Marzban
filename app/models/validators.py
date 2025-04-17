@@ -1,5 +1,7 @@
+from datetime import datetime
 import re
 from decimal import Decimal
+from app.db.models import UserStatusCreate
 
 
 class NumericValidatorMixin:
@@ -24,7 +26,30 @@ class NumericValidatorMixin:
         elif isinstance(v, int):  # Allow integers directly
             return v
 
-        raise ValueError("must be an integer or a float, not a string")  # Reject strings
+        raise ValueError("must be an integer, Decimal or a float, not a string")  # Reject strings
+
+    @staticmethod
+    def cast_to_float(v):
+        """
+        Static method to validate and convert numeric values to floats.
+
+        Args:
+            v: Input value to be converted
+
+        Returns:
+            float or None: Converted float value
+
+        Raises:
+            ValueError: If the input cannot be converted to an float
+        """
+        if v is None:
+            return v
+        elif isinstance(v, int) or isinstance(v, Decimal):
+            return float(v)
+        elif isinstance(v, float):
+            return v
+
+        raise ValueError("must be an integer, Decimal or a float, not a string")
 
 
 class ListValidator:
@@ -75,3 +100,34 @@ class PasswordValidator:
         if errors:
             raise ValueError("; ".join(errors))
         return value
+
+
+class UserValidator:
+    @staticmethod
+    def validate_status(status, values):
+        on_hold_expire = values.data.get("on_hold_expire_duration")
+        expire = values.data.get("expire")
+        if status == UserStatusCreate.on_hold:
+            if on_hold_expire == 0 or on_hold_expire is None:
+                raise ValueError("User cannot be on hold without a valid on_hold_expire_duration.")
+            if expire:
+                raise ValueError("User cannot be on hold with specified expire.")
+        return status
+
+    @staticmethod
+    def validate_username(username):
+        if not re.match(r"^[a-zA-Z0-9-_@.]+$", username):
+            raise ValueError("Username can only contain alphanumeric characters, -, _, @, and .")
+
+        # Additional check to prevent consecutive special characters
+        if re.search(r"[-_@.]{2,}", username):
+            raise ValueError("Username cannot have consecutive special characters")
+
+        return username
+
+    @staticmethod
+    def validator_on_hold_timeout(value):
+        if value == 0 or isinstance(value, datetime) or value is None:
+            return value
+        else:
+            raise ValueError("on_hold_timeout can be datetime or 0")

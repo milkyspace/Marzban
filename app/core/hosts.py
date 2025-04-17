@@ -1,29 +1,30 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import on_startup
-from app.utils.store import DictStorage
-from .xray import XRayConfig
+from app.core.manager import core_manager
 from app.db import GetDB
+from app.db.crud import get_host_by_id, get_hosts, get_or_create_inbound
 from app.db.models import ProxyHostSecurity
-from app.db.crud import get_hosts, get_or_create_inbound, get_host_by_id
-from config import XRAY_JSON
-
-
-config = XRayConfig(XRAY_JSON)
+from app.utils.store import DictStorage
 
 
 @DictStorage
 async def hosts(storage: dict, db: AsyncSession):
-    await check_inbounds(db)
+    inbounds_list = await core_manager.get_inbounds()
+    for tag in inbounds_list:
+        await get_or_create_inbound(db, tag)
+
     storage.clear()
     db_hosts = await get_hosts(db)
 
     for host in db_hosts:
-        if host.is_disabled or (config.get_inbound(host.inbound_tag) is None):
+        if host.is_disabled or (host.inbound_tag not in inbounds_list):
             continue
         downstream = None
-        if host.transport_settings and (
-            ds_host := host.transport_settings.get("xhttp_settings", {}).get("download_settings")
+        if (
+            host.transport_settings
+            and host.transport_settings.get("xhttp_settings")
+            and (ds_host := host.transport_settings.get("xhttp_settings", {}).get("download_settings"))
         ):
             downstream = await get_host_by_id(db, ds_host)
 
@@ -60,9 +61,7 @@ async def hosts(storage: dict, db: AsyncSession):
                 "host": [h.strip() for h in downstream.host.split(",")] if downstream.host else [],
                 "alpn": downstream.alpn.value,
                 "fingerprint": downstream.fingerprint.value,
-                "tls": None
-                if downstream.security == ProxyHostSecurity.inbound_default
-                else downstream.security.value,
+                "tls": None if downstream.security == ProxyHostSecurity.inbound_default else downstream.security.value,
                 "allowinsecure": downstream.allowinsecure,
                 "fragment_settings": downstream.fragment_settings,
                 "noise_settings": downstream.noise_settings,
@@ -79,15 +78,7 @@ async def hosts(storage: dict, db: AsyncSession):
         storage[host.id] = host_data
 
 
-async def check_inbounds(db: AsyncSession):
-    for tag in config.inbounds:
-        await get_or_create_inbound(db, tag)
-
-
 @on_startup
 async def initialize_hosts():
     async with GetDB() as db:
         await hosts.update(db)
-
-
-__all__ = ["config", "hosts", "nodes", "XRayConfig"]

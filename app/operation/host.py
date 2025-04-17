@@ -6,7 +6,7 @@ from app.models.host import CreateHost, BaseHost
 from app.models.admin import AdminDetails
 from app.operation import BaseOperator
 from app.db.crud import add_host, get_host_by_id, remove_host, get_hosts, modify_host
-from app.backend import hosts
+from app.core.hosts import hosts as hosts_storage
 from app.utils.logger import get_logger
 
 from app import notification
@@ -19,19 +19,26 @@ class HostOperator(BaseOperator):
     async def get_hosts(self, db: AsyncSession, offset: int = 0, limit: int = 0) -> list[BaseHost]:
         return await get_hosts(db=db, offset=offset, limit=limit)
 
-    async def add_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
+    async def validate_ds_host(self, db: AsyncSession, host: CreateHost, host_id: int | None = None) -> ProxyHost:
         if (
-            new_host.transport_settings
-            and new_host.transport_settings.xhttp_settings
-            and (nested_host := new_host.transport_settings.xhttp_settings.download_settings)
+            host.transport_settings
+            and host.transport_settings.xhttp_settings
+            and (nested_host := host.transport_settings.xhttp_settings.download_settings)
         ):
+            if host_id and nested_host == host_id:
+                return await self.raise_error("download host cannot be the same as the host", 400, db=db)
             ds_host = await get_host_by_id(db, nested_host)
             if not ds_host:
-                return self.raise_error("download host not found", 404)
-            if ds_host.transport_settings and ds_host.transport_settings.get("xhttp_settings", {}).get(
-                "download_settings"
+                return await self.raise_error("download host not found", 404, db=db)
+            if (
+                ds_host.transport_settings
+                and ds_host.transport_settings.get("xhttp_settings")
+                and ds_host.transport_settings.get("xhttp_settings").get("download_settings")
             ):
-                return self.raise_error("download host cannot have a download host", 400)
+                return await self.raise_error("download host cannot have a download host", 400, db=db)
+
+    async def add_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
+        await self.validate_ds_host(db, new_host)
 
         await self.check_inbound_tags([new_host.inbound_tag])
 
@@ -42,27 +49,14 @@ class HostOperator(BaseOperator):
         host = BaseHost.model_validate(db_host)
         asyncio.create_task(notification.create_host(host, admin.username))
 
-        await hosts.update(db)
+        await hosts_storage.update(db)
 
         return host
 
     async def modify_host(
         self, db: AsyncSession, host_id: int, modified_host: CreateHost, admin: AdminDetails
     ) -> BaseHost:
-        if (
-            modified_host.transport_settings
-            and modified_host.transport_settings.xhttp_settings
-            and (nested_host := modified_host.transport_settings.xhttp_settings.download_settings)
-        ):
-            if nested_host == host_id:
-                return self.raise_error("download host cannot be the same as the host", 400)
-            ds_host = await get_host_by_id(db, nested_host)
-            if not ds_host:
-                return self.raise_error("download host not found", 404)
-            if ds_host.transport_settings and ds_host.transport_settings.get("xhttp_settings", {}).get(
-                "download_settings"
-            ):
-                return self.raise_error("download host cannot have a download host", 400)
+        await self.validate_ds_host(db, modified_host, host_id)
 
         if modified_host.inbound_tag:
             await self.check_inbound_tags([modified_host.inbound_tag])
@@ -76,7 +70,7 @@ class HostOperator(BaseOperator):
         host = BaseHost.model_validate(db_host)
         asyncio.create_task(notification.modify_host(host, admin.username))
 
-        await hosts.update(db)
+        await hosts_storage.update(db)
 
         return host
 
@@ -89,12 +83,14 @@ class HostOperator(BaseOperator):
 
         asyncio.create_task(notification.remove_host(host, admin.username))
 
-        await hosts.update(db)
+        await hosts_storage.update(db)
 
     async def update_hosts(
         self, db: AsyncSession, modified_hosts: list[CreateHost], admin: AdminDetails
     ) -> list[BaseHost]:
         for host in modified_hosts:
+            await self.validate_ds_host(db, host, host.id)
+
             old_host: ProxyHost | None = None
             if host.id is not None:
                 old_host = await get_host_by_id(db, host.id)
@@ -104,7 +100,7 @@ class HostOperator(BaseOperator):
             else:
                 await modify_host(db, old_host, host)
 
-        await hosts.update(db)
+        await hosts_storage.update(db)
 
         logger.info(f'Host\'s has been modified by admin "{admin.username}"')
 
