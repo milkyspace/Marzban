@@ -12,7 +12,7 @@ from app.utils.logger import get_logger
 from app import notification
 
 
-logger = get_logger("Host-Operator")
+logger = get_logger("host-operation")
 
 
 class HostOperation(BaseOperation):

@@ -1341,7 +1341,7 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
     return db_user_template
 
 
-async def update_user_template(
+async def modify_user_template(
     db: AsyncSession, db_user_template: UserTemplate, modified_user_template: UserTemplateModify
 ) -> UserTemplate:
     """
@@ -1349,7 +1349,7 @@ async def update_user_template(
 
     Args:
         db (AsyncSession): Database session.
-        dbuser_template (UserTemplate): The user template object to be updated.
+        db_user_template (UserTemplate): The user template object to be updated.
         modified_user_template (UserTemplateModify): The modified user template data.
 
     Returns:

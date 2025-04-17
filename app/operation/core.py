@@ -8,7 +8,7 @@ from app.operation import BaseOperation
 from app.utils.logger import get_logger
 
 
-logger = get_logger("core-operator")
+logger = get_logger("core-operation")
 
 
 class CoreOperation(BaseOperation):

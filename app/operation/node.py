@@ -29,7 +29,7 @@ from app import notification
 
 MAX_MESSAGE_LENGTH = 128
 
-logger = get_logger("node-operator")
+logger = get_logger("node-operation")
 
 
 class NodeOperation(BaseOperation):

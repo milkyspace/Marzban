@@ -11,7 +11,7 @@ from app.operation import BaseOperation
 from app.utils.logger import get_logger
 from app import notification
 
-logger = get_logger("group-operator")
+logger = get_logger("group-operation")
 
 
 class GroupOperation(BaseOperation):

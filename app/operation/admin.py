@@ -21,7 +21,7 @@ from app.node import node_manager
 from app.core.manager import core_manager
 from app import notification
 
-logger = get_logger("admin-operator")
+logger = get_logger("admin-operation")
 
 
 class AdminOperation(BaseOperation):
