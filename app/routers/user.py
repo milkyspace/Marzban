@@ -19,11 +19,11 @@ from app.db.models import UserStatus
 from app.utils import responses
 from app.operation import OperatorType
 from app.operation.user import UserOperator
-from app.operation.node import NodeOperator
+from app.operation.node import NodeOperation
 
 
 user_operator = UserOperator(operator_type=OperatorType.API)
-node_operator = NodeOperator(operator_type=OperatorType.API)
+node_operator = NodeOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["User"], prefix="/api/user", responses={401: responses._401})
 
 

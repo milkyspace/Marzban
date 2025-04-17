@@ -1619,9 +1619,9 @@ async def remove_node(db: AsyncSession, db_node: Node) -> Node:
     await db.commit()
 
 
-async def update_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> Node:
+async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> Node:
     """
-    Updates an existing node with new information.
+    modify an existing node with new information.
 
     Args:
         db (AsyncSession): The database session.
@@ -1629,7 +1629,7 @@ async def update_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
         modify (NodeModify): The modification model containing updated node details.
 
     Returns:
-        Node: The updated Node object.
+        Node: The modified Node object.
     """
 
     node_data = modify.model_dump(exclude_none=True)
