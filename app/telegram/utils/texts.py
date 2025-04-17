@@ -36,7 +36,9 @@ class Message:
         expire = user.expire.strftime("%Y-%m-%d %H:%M") if user.expire else "∞"
         days_left = (user.expire - dt.now()).days if user.expire else "∞"
         on_hold_timeout = user.on_hold_timeout.strftime("%Y-%m-%d %H:%M") if user.on_hold_timeout else "-"
-        on_hold_expire_duration = int(user.on_hold_expire_duration / 24/60/60) if user.on_hold_expire_duration else "0"
+        on_hold_expire_duration = (
+            int(user.on_hold_expire_duration / 24 / 60 / 60) if user.on_hold_expire_duration else "0"
+        )
         online_at = f.blockquote(user.online_at.strftime("%Y-%m-%d %H:%M:%S")) if user.online_at else "-"
         sub_update_at = f.code(user.sub_updated_at.strftime("%Y-%m-%d %H:%M:%S")) if user.sub_updated_at else "-"
         user_agent = f.blockquote(escape(user.sub_last_user_agent)) if user.sub_last_user_agent else "-"
@@ -102,4 +104,3 @@ class Message:
     @staticmethod
     def confirm_activate_next_plan(username: str) -> str:
         return f"⚠ Are you sure you want to {f.bold('Activate Next Plan')} for {f.code(username)}?"
-

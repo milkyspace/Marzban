@@ -1885,9 +1885,9 @@ async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Grou
     return (await db.execute(get_group_queryset().where(Group.id.in_(group_ids)))).scalars().all()
 
 
-async def update_group(db: AsyncSession, db_group: Group, modified_group: GroupModify) -> Group:
+async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupModify) -> Group:
     """
-    Updates an existing group with new information.
+    Modify an existing group with new information.
 
     Args:
         db (AsyncSession): The database session.
