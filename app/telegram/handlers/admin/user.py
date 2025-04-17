@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import GetDB
 from app.models.user import UserCreate, UserModify, UserStatusModify
 from app.operation import OperatorType
-from app.operation.user import UserOperator
+from app.operation.user import UserOperation
 from app.operation.group import GroupOperation
 from app.telegram.keyboards.group import DoneAction, GroupsSelector
 from app.telegram.utils.forms import CreateUser
@@ -22,7 +22,7 @@ from . import router
 from app.telegram.utils.texts import Message as Texts
 from app.telegram.keyboards.user import UserPanel, UserPanelAction
 
-user_operations = UserOperator(OperatorType.TELEGRAM)
+user_operations = UserOperation(OperatorType.TELEGRAM)
 group_operations = GroupOperation(OperatorType.TELEGRAM)
 
 USERNAME_PATTERN = re.compile(r"^(?=\w{3,32}\b)[a-zA-Z0-9-_@.]+(?:_[a-zA-Z0-9-_@.]+)*$")
@@ -156,7 +156,7 @@ async def process_done(
     new_user = UserCreate(**data)
     async with GetDB() as db:
         try:
-            await user_operations.add_user(db, new_user, admin)
+            await user_operations.create_user(db, new_user, admin)
             await query.message.answer("user created successfully")
         except Exception:
             pass

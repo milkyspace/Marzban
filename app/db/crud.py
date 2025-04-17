@@ -602,9 +602,9 @@ async def remove_users(db: AsyncSession, db_users: list[User]):
     await db.commit()
 
 
-async def update_user(db: AsyncSession, db_user: User, modify: UserModify) -> User:
+async def modify_user(db: AsyncSession, db_user: User, modify: UserModify) -> User:
     """
-    Updates a user's information.
+    Modify a user's information.
 
     Args:
         db (AsyncSession): Database session.
