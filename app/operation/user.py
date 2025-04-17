@@ -37,7 +37,7 @@ from app.models.user import (
 )
 from app.models.user_template import UserTemplateResponse
 from app.node import node_manager as node_manager
-from app.operation import BaseOperator
+from app.operation import BaseOperation
 from app.utils.logger import get_logger
 from app.utils.jwt import create_subscription_token
 from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
@@ -47,7 +47,7 @@ from app import notification
 logger = get_logger("user-operator")
 
 
-class UserOperator(BaseOperator):
+class UserOperator(BaseOperation):
     @staticmethod
     async def generate_subscription_url(user: UserResponse):
         salt = secrets.token_hex(8)

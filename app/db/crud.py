@@ -200,7 +200,7 @@ async def get_host_by_id(db: AsyncSession, id: int) -> ProxyHost:
     return result.scalar_one_or_none()
 
 
-async def add_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
+async def create_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
     """
     Creates a proxy Host based on the host.
 

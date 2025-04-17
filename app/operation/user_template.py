@@ -5,7 +5,7 @@ import asyncio
 
 from app.db.models import Admin
 from app.db.crud import create_user_template, update_user_template, remove_user_template, get_user_templates
-from app.operation import BaseOperator
+from app.operation import BaseOperation
 from app.models.user_template import UserTemplateCreate, UserTemplateModify, UserTemplateResponse
 from app.utils.logger import get_logger
 from app import notification
@@ -13,7 +13,7 @@ from app import notification
 logger = get_logger("user-template-operator")
 
 
-class UserTemplateOperation(BaseOperator):
+class UserTemplateOperation(BaseOperation):
     async def add_user_template(
         self, db: AsyncSession, new_user_template: UserTemplateCreate, admin: Admin
     ) -> UserTemplateResponse:

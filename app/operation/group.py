@@ -7,14 +7,14 @@ from app.models.group import Group, GroupCreate, GroupModify, GroupsResponse, Gr
 from app.models.user import UserResponse
 from app.node import node_manager
 from app.core.manager import core_manager
-from app.operation import BaseOperator
+from app.operation import BaseOperation
 from app.utils.logger import get_logger
 from app import notification
 
 logger = get_logger("group-operator")
 
 
-class GroupOperation(BaseOperator):
+class GroupOperation(BaseOperation):
     async def create_group(self, db: AsyncSession, new_group: GroupCreate, admin: Admin) -> Group:
         await self.check_inbound_tags(new_group.inbound_tags)
 

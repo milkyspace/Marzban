@@ -3,7 +3,7 @@ import asyncio
 from sqlalchemy.exc import IntegrityError
 from GozargahNodeBridge import GozargahNode, NodeAPIError
 
-from app.operation import BaseOperator
+from app.operation import BaseOperation
 from app.models.stats import RealtimeNodeStats, NodeUsageStats, Period, NodeStats
 from app.models.node import NodeCreate, NodeResponse, NodeModify
 from app.models.admin import AdminDetails
@@ -32,7 +32,7 @@ MAX_MESSAGE_LENGTH = 128
 logger = get_logger("node-operator")
 
 
-class NodeOperator(BaseOperator):
+class NodeOperator(BaseOperation):
     async def get_db_nodes(
         self, db: AsyncSession, core_id: int | None = None, offset: int | None = None, limit: int | None = None
     ) -> list[Node]:
