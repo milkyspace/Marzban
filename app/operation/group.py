@@ -1,15 +1,15 @@
 import asyncio
 
+from app import notification
+from app.core.manager import core_manager
 from app.db import AsyncSession
+from app.db.crud import create_group, get_group, get_users, modify_group, remove_group
 from app.db.models import Admin
-from app.db.crud import create_group, get_group, modify_group, remove_group, get_users
-from app.models.group import Group, GroupCreate, GroupModify, GroupsResponse, GroupResponse
+from app.models.group import Group, GroupCreate, GroupModify, GroupResponse, GroupsResponse
 from app.models.user import UserResponse
 from app.node import node_manager
-from app.core.manager import core_manager
 from app.operation import BaseOperation
 from app.utils.logger import get_logger
-from app import notification
 
 logger = get_logger("group-operation")
 
@@ -40,14 +40,12 @@ class GroupOperation(BaseOperation):
         db_group = await modify_group(db, db_group, modified_group)
 
         users = await get_users(db, group_ids=[db_group.id])
-        await asyncio.gather(
-            *[
-                node_manager.update_user(
-                    UserResponse.model_validate(user), user.inbounds(await core_manager.get_inbounds())
-                )
-                for user in users
-            ]
-        )
+        await asyncio.gather(*[
+            node_manager.update_user(
+                UserResponse.model_validate(user), user.inbounds(await core_manager.get_inbounds())
+            )
+            for user in users
+        ])
 
         group = GroupResponse.model_validate(db_group)
 
@@ -65,14 +63,12 @@ class GroupOperation(BaseOperation):
         await remove_group(db, db_group)
         users = await get_users(db, usernames=username_list)
 
-        await asyncio.gather(
-            *[
-                node_manager.update_user(
-                    UserResponse.model_validate(user), user.inbounds(await core_manager.get_inbounds())
-                )
-                for user in users
-            ]
-        )
+        await asyncio.gather(*[
+            node_manager.update_user(
+                UserResponse.model_validate(user), user.inbounds(await core_manager.get_inbounds())
+            )
+            for user in users
+        ])
 
         logger.info(f'Group "{db_group.name}" deleted by admin "{admin.username}"')
 

@@ -1809,10 +1809,9 @@ async def get_inbounds_by_tags(db: AsyncSession, tags: list[str]) -> list[ProxyI
     return [(await get_or_create_inbound(db, tag)) for tag in tags]
 
 
-def get_group_queryset() -> Query:
-    return select(Group).options(
-        selectinload(Group.users),
-    )
+async def load_group_attrs(group: Group):
+    await group.awaitable_attrs.users
+    await group.awaitable_attrs.inbounds
 
 
 async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
@@ -1826,7 +1825,10 @@ async def get_group_by_id(db: AsyncSession, group_id: int) -> Group | None:
     Returns:
         Optional[Group]: The Group object if found, None otherwise.
     """
-    return (await db.execute(get_group_queryset().where(Group.id == group_id))).unique().scalar_one_or_none()
+    group = (await db.execute(select(Group).where(Group.id == group_id))).unique().scalar_one_or_none()
+    if group:
+        await load_group_attrs(group)
+    return group
 
 
 async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
@@ -1865,7 +1867,7 @@ async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> 
             - list[Group]: A list of Group objects
             - int: The total count of groups
     """
-    groups = get_group_queryset()
+    groups = select(Group)
     if offset:
         groups = groups.offset(offset)
     if limit:
@@ -1876,6 +1878,10 @@ async def get_group(db: AsyncSession, offset: int = None, limit: int = None) -> 
     count = (await db.execute(count_query)).scalar_one()
 
     all_groups = (await db.execute(groups)).scalars().all()
+
+    for group in all_groups:
+        await load_group_attrs(group)
+
     return all_groups, count
 
 
@@ -1890,7 +1896,12 @@ async def get_groups_by_ids(db: AsyncSession, group_ids: list[int]) -> list[Grou
     Returns:
         list[Group]: A list of Group objects.
     """
-    return (await db.execute(get_group_queryset().where(Group.id.in_(group_ids)))).scalars().all()
+    groups = (await db.execute(select(Group).where(Group.id.in_(group_ids)))).scalars().all()
+
+    for group in groups:
+        await load_group_attrs(group)
+
+    return groups
 
 
 async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupModify) -> Group:
