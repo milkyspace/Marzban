@@ -1618,7 +1618,9 @@ async def get_nodes_usage(
     )
 
     result = await db.execute(stmt)
-    return NodeUsageStatsList(period=period, start=start, end=end, stats=[NodeUsageStat(**row) for row in result])
+    return NodeUsageStatsList(
+        period=period, start=start, end=end, stats=[NodeUsageStat(**row) for row in result.mappings()]
+    )
 
 
 async def get_node_stats(
