@@ -1869,7 +1869,8 @@ async def create_group(db: AsyncSession, group: GroupCreate) -> Group:
     )
     db.add(db_group)
     await db.commit()
-    await db.refresh(db_group, ["id", "name", "is_disabled", "users", "inbounds"])
+    await db.refresh(db_group)
+    await load_group_attrs(db_group)
     return db_group
 
 
