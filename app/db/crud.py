@@ -1377,8 +1377,8 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> int:
     return db_admin
 
 
-def get_user_template_queryset() -> Query:
-    return select(UserTemplate).options(selectinload(UserTemplate.groups))
+async def load_user_template_attrs(template: UserTemplate):
+    await template.awaitable_attrs.groups
 
 
 async def create_user_template(db: AsyncSession, user_template: UserTemplateCreate) -> UserTemplate:
@@ -1407,6 +1407,7 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
     db.add(db_user_template)
     await db.commit()
     await db.refresh(db_user_template)
+    await load_user_template_attrs(db_user_template)
     return db_user_template
 
 
@@ -1445,6 +1446,7 @@ async def modify_user_template(
 
     await db.commit()
     await db.refresh(db_user_template)
+    await load_user_template_attrs(db_user_template)
     return db_user_template
 
 
@@ -1471,11 +1473,13 @@ async def get_user_template(db: AsyncSession, user_template_id: int) -> UserTemp
     Returns:
         UserTemplate: The user template object.
     """
-    return (
-        (await db.execute(get_user_template_queryset().where(UserTemplate.id == user_template_id)))
+    user_template = (
+        (await db.execute(select(UserTemplate).where(UserTemplate.id == user_template_id)))
         .unique()
         .scalar_one_or_none()
     )
+    await load_user_template_attrs(user_template)
+    return user_template
 
 
 async def get_user_templates(
@@ -1492,13 +1496,17 @@ async def get_user_templates(
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
-    dbuser_templates = get_user_template_queryset()
+    query = select(UserTemplate)
     if offset:
-        dbuser_templates = dbuser_templates.offset(offset)
+        query = query.offset(offset)
     if limit:
-        dbuser_templates = dbuser_templates.limit(limit)
+        query = query.limit(limit)
 
-    return (await db.execute(dbuser_templates)).scalars().all()
+    user_templates = (await db.execute(query)).scalars().all()
+    for template in user_templates:
+        await load_user_template_attrs(template)
+
+    return user_templates
 
 
 def get_node_queryset() -> Query:
