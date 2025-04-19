@@ -1158,8 +1158,9 @@ async def get_tls_certificate(db: AsyncSession) -> TLS:
     return (await db.execute(select(TLS))).scalar_one_or_none()
 
 
-def get_admin_queryset() -> Query:
-    return select(Admin).options(selectinload(Admin.usage_logs), selectinload(Admin.users))
+async def load_admin_attrs(admin: Admin):
+    await admin.awaitable_attrs.users
+    await admin.awaitable_attrs.usage_logs
 
 
 async def get_admin(db: AsyncSession, username: str) -> Admin:
@@ -1173,7 +1174,10 @@ async def get_admin(db: AsyncSession, username: str) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(get_admin_queryset().where(Admin.username == username))).unique().scalar_one_or_none()
+    admin = (await db.execute(select(Admin).where(Admin.username == username))).unique().scalar_one_or_none()
+    if admin:
+        await load_admin_attrs(admin)
+    return admin
 
 
 async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
@@ -1190,7 +1194,9 @@ async def create_admin(db: AsyncSession, admin: AdminCreate) -> Admin:
     db_admin = Admin(**admin.model_dump(exclude={"password"}), hashed_password=admin.hashed_password)
     db.add(db_admin)
     await db.commit()
-    return await get_admin(db, admin.username)
+    await db.refresh(db_admin)
+    await load_admin_attrs(db_admin)
+    return db_admin
 
 
 async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminModify) -> Admin:
@@ -1228,8 +1234,8 @@ async def update_admin(db: AsyncSession, db_admin: Admin, modified_admin: AdminM
         db_admin.profile_title = modified_admin.profile_title
 
     await db.commit()
-    await db.refresh(db_admin)
-    return await get_admin(db, db_admin.username)
+    await load_admin_attrs(db_admin)
+    return db_admin
 
 
 async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
@@ -1255,7 +1261,10 @@ async def get_admin_by_id(db: AsyncSession, id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(get_admin_queryset().where(Admin.id == id))).unique().scalar_one_or_none()
+    admin = (await db.execute(select(Admin).where(Admin.id == id))).unique().scalar_one_or_none()
+    if admin:
+        await load_admin_attrs(admin)
+    return admin
 
 
 async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
@@ -1269,9 +1278,10 @@ async def get_admin_by_telegram_id(db: AsyncSession, telegram_id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (
-        (await db.execute(get_admin_queryset().where(Admin.telegram_id == telegram_id))).unique().scalar_one_or_none()
-    )
+    admin = (await db.execute(select(Admin).where(Admin.telegram_id == telegram_id))).unique().scalar_one_or_none()
+    if admin:
+        await load_admin_attrs(admin)
+    return admin
 
 
 async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
@@ -1285,7 +1295,10 @@ async def get_admin_by_discord_id(db: AsyncSession, discord_id: int) -> Admin:
     Returns:
         Admin: The admin object.
     """
-    return (await db.execute(get_admin_queryset().where(Admin.discord_id == discord_id))).unique().scalar_one_or_none()
+    admin = (await db.execute(select(Admin).where(Admin.discord_id == discord_id))).unique().scalar_one_or_none()
+    if admin:
+        await load_admin_attrs(admin)
+    return admin
 
 
 async def get_admins(
@@ -1303,14 +1316,20 @@ async def get_admins(
     Returns:
         List[Admin]: A list of admin objects.
     """
-    query = get_admin_queryset()
+    query = select(Admin)
     if username:
         query = query.where(Admin.username.ilike(f"%{username}%"))
     if offset:
         query = query.offset(offset)
     if limit:
         query = query.limit(limit)
-    return (await db.execute(query)).scalars().all()
+
+    admins = (await db.execute(query)).scalars().all()
+
+    for admin in admins:
+        await load_admin_attrs(admin)
+
+    return admins
 
 
 async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> int:
@@ -1330,7 +1349,8 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> int:
     db_admin.users_usage = 0
 
     await db.commit()
-    return await get_admin_by_id(db, db_admin.id)
+    await db.refresh(db_admin)
+    return db_admin
 
 
 def get_user_template_queryset() -> Query:
@@ -1926,6 +1946,7 @@ async def modify_group(db: AsyncSession, db_group: Group, modified_group: GroupM
         db_group.inbounds = inbounds
     await db.commit()
     await db.refresh(db_group)
+    await load_group_attrs(db_group)
     return db_group
 
 
