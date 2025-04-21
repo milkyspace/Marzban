@@ -1,6 +1,6 @@
 # Build stage
 ARG PYTHON_VERSION=3.12
-FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-slim
+FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim
 
 # Set up the working directory
 WORKDIR /code
