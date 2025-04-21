@@ -1,5 +1,5 @@
 #!/bin/bash
-UV_PATH="bin/uv"
+VENV_PATH="/code/.venv/bin/python"
 SCRIPT_PATH="/code/marzban-cli.py"
 
-$UV_PATH run $SCRIPT_PATH
+$VENV_PATH $SCRIPT_PATH
