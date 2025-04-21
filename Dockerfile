@@ -1,7 +1,8 @@
+# Build stage
 ARG PYTHON_VERSION=3.12
-FROM python:$PYTHON_VERSION-slim
+FROM python:$PYTHON_VERSION-slim AS builder
 
-# Install build dependencies for psutil
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
@@ -9,9 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up the working directory
-RUN mkdir /code
-WORKDIR /code
-COPY . /code
+WORKDIR /build
+COPY . /build
+
+# Copy uv from its container
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install dependencies using uv
@@ -23,8 +25,25 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
-# Create CLI wrapper
-COPY ./cli_wrapper /usr/bin/marzban-cli
+# Final stage
+FROM python:$PYTHON_VERSION-slim
+
+# Set up the working directory
+RUN mkdir /code
+WORKDIR /code
+
+# Copy uv from the builder stage
+COPY --from=builder /bin/uv /bin/uvx /bin/
+
+# Copy the Python packages - adjust this path based on where uv installs packages
+COPY --from=builder /root/.cache/uv/install /root/.cache/uv/install
+COPY --from=builder /root/.local /root/.local
+
+# Copy your application code
+COPY . /code
+
+# Copy and set up the CLI wrapper
+COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 
 # Set the entrypoint
