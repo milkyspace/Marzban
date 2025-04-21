@@ -1,20 +1,14 @@
 # Build stage
 ARG PYTHON_VERSION=3.12
-FROM python:$PYTHON_VERSION-slim AS builder
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    libc6-dev \
-    && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-slim
 
 # Set up the working directory
-WORKDIR /build
-COPY . /build
+WORKDIR /code
+COPY . /code
 
-# Copy uv from its container
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Enable bytecode compilation and use copy mode instead of linking
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
 
 # Install dependencies using uv
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -25,27 +19,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
-# Final stage
-FROM python:$PYTHON_VERSION-slim
+# Put the virtual environment binaries in the PATH
+ENV PATH="/code/.venv/bin:$PATH"
 
-# Set up the working directory
-RUN mkdir /code
-WORKDIR /code
-
-# Copy uv from the builder stage
-COPY --from=builder /bin/uv /bin/uvx /bin/
-
-# Copy the Python packages - adjust this path based on where uv installs packages
-COPY --from=builder /root/.cache/uv/install /root/.cache/uv/install
-COPY --from=builder /root/.local /root/.local
-
-# Copy your application code
-COPY . /code
-
-# Copy and set up the CLI wrapper
+# Create CLI wrapper
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 
 # Set the entrypoint
-ENTRYPOINT ["bash", "-c", "uv run alembic upgrade head"]
-CMD ["bash", "-c", "uv run main.py"]
+# Adjust to use the venv path as needed
+ENTRYPOINT ["bash", "-c", "/code/.venv/bin/python -m alembic upgrade head"]
+CMD ["bash", "-c", "/code/.venv/bin/python main.py"]
