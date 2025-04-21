@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'dev'
+      - 'next-workflow'
 
 jobs:
   build-dev:
@@ -30,12 +31,7 @@ jobs:
         run: pnpm i
 
       - name: Build project
-        working-directory: ./dashboard
-        run: VITE_BASE_API=/api/ pnpm run build -- --outDir build --assetsDir statics
-
-      - name: Create 404.html
-        working-directory: ./dashboard
-        run: cp ./build/index.html ./build/404.html
+        run: ./build_dashboard.sh
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
