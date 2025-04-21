@@ -24,11 +24,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
 # Create CLI wrapper
-RUN echo '#!/bin/bash' > /usr/bin/marzban-cli && \
-    echo 'UV_PATH="/bin/uv"' >> /usr/bin/marzban-cli && \
-    echo 'SCRIPT_PATH="/code/marzban-cli.py"' >> /usr/bin/marzban-cli && \
-    echo '$UV_PATH run $SCRIPT_PATH "$@"' >> /usr/bin/marzban-cli && \
-    chmod +x /usr/bin/marzban-cli
+COPY ./cli_wrapper /usr/bin/marzban-cli
+RUN chmod +x /usr/bin/marzban-cli
 
 # Set the entrypoint
 ENTRYPOINT ["bash", "-c", "uv run alembic upgrade head"]
