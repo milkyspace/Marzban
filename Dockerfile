@@ -1,32 +1,54 @@
-# Build stage
 ARG PYTHON_VERSION=3.12
-FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim
 
-# Set up the working directory
-WORKDIR /code
-COPY . /code
+# Build stage
+FROM python:$PYTHON_VERSION-slim AS builder
 
-# Enable bytecode compilation and use copy mode instead of linking
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_LINK_MODE=copy
+# Install build dependencies for psutil
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies using uv
+# Copy uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Change the working directory to the `build` directory
+WORKDIR /build
+
+# Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project
+    uv sync --frozen --no-install-project --no-editable
 
+# Copy the project into the intermediate image
+COPY . /build
+
+# Sync the project
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    uv sync --frozen --no-editable
 
-# Put the virtual environment binaries in the PATH
+# Final stage
+FROM python:$PYTHON_VERSION-slim
+
+# Create code directory
+RUN mkdir -p /code
+WORKDIR /code
+
+# Copy the environment from builder
+COPY --from=builder /build/.venv /code/.venv
+
+# Copy your application code
+COPY . /code
+
+# Add virtual environment to PATH
 ENV PATH="/code/.venv/bin:$PATH"
 
-# Create CLI wrapper
+# Copy and setup CLI wrapper
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 
 # Set the entrypoint
-# Adjust to use the venv path as needed
 ENTRYPOINT ["bash", "-c", "/code/.venv/bin/python -m alembic upgrade head"]
 CMD ["bash", "-c", "/code/.venv/bin/python main.py"]
