@@ -24,8 +24,6 @@ RUN echo '#!/bin/bash' > /usr/bin/marzban-cli && \
     echo '$UV_PATH run $SCRIPT_PATH "$@"' >> /usr/bin/marzban-cli && \
     chmod +x /usr/bin/marzban-cli
 
-RUN /usr/bin/marzban-cli completion install --shell bash
-
 # Set the entrypoint
 ENTRYPOINT ["bash", "-c", "uv run alembic upgrade head"]
 CMD ["bash", "-c", "uv run main.py"]
