@@ -51,4 +51,4 @@ RUN chmod +x /usr/bin/marzban-cli
 
 # Set the entrypoint
 ENTRYPOINT ["bash", "-c", "/code/.venv/bin/python -m alembic upgrade head"]
-CMD ["bash", "-c", "/code/.venv/bin/python main.py"]
+CMD ["bash", "-c", "/code/.venv/bin/python /code/main.py"]
