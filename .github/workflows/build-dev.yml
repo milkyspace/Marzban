@@ -54,7 +54,7 @@ jobs:
         run: uv python install
 
       - name: Install Dependencies
-        run: uv sync --frozen --no-dev --venv venv_amd64
+        run: uv sync --frozen --no-dev
 
       - name: Rename venv
         run: mv .venv venv_amd64
