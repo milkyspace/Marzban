@@ -11,7 +11,7 @@ ARG TARGETARCH
 # This will be populated during the Docker build with the specific artifact
 COPY ./venv/${TARGETARCH} /code/.venv
 
-RUN rm -rf venv
+RUN rm -rf /code/venv
 
 ENV PATH="/code/.venv/bin:$PATH"
 
