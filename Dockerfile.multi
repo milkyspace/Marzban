@@ -5,7 +5,7 @@ WORKDIR /code
 COPY . /code
 
 # Remove any existing .venv directory if present
-RUN rm -rf /code/.venv
+RUN rm -rf /code/venv
 
 # Set an argument for architecture that will be passed during build
 ARG TARGETARCH
