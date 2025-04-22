@@ -8,7 +8,7 @@ COPY . /code
 RUN rm -rf /code/.venv
 
 # Set an argument for architecture that will be passed during build
-ARG TARGETARCH=arm64
+ARG TARGETARCH
 
 # Copy the appropriate .venv based on architecture
 # This will be populated during the Docker build with the specific artifact
