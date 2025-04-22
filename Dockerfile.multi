@@ -22,4 +22,4 @@ WORKDIR /code
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 
-ENTRYPOINT ["./start.sh"]
+ENTRYPOINT ["bash", "-c", "/code/start.sh"]
