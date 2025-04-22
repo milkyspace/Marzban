@@ -4,15 +4,12 @@ FROM python:$PYTHON_VERSION-slim-bookworm
 WORKDIR /code
 COPY . /code
 
-# Remove any existing .venv directory if present
-RUN rm -rf /code/venv
-
 # Set an argument for architecture that will be passed during build
 ARG TARGETARCH
 
 # Copy the appropriate .venv based on architecture
 # This will be populated during the Docker build with the specific artifact
-COPY ./venv/${TARGETARCH} /code/.venv
+COPY ../venv/${TARGETARCH} /code/.venv
 
 ENV PATH="/code/.venv/bin:$PATH"
 

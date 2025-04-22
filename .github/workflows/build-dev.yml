@@ -104,18 +104,18 @@ jobs:
         with:
           name: dashboard-build
           path: ./dashboard/build/
-      
+
       - name: Download amd64 venv
         uses: actions/download-artifact@v4
         with:
           name: venv-amd64
-          path: ./venv/amd64
-        
+          path: ../venv/amd64
+
       - name: Download arm64 venv
         uses: actions/download-artifact@v4
         with:
           name: venv-arm64
-          path: ./venv/arm64
+          path: ../venv/arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
