@@ -1,12 +1,22 @@
 ARG PYTHON_VERSION=3.13
 FROM python:$PYTHON_VERSION-slim-bookworm
 
-COPY . /code
 WORKDIR /code
+COPY . /code
+
+# Remove any existing .venv directory if present
+RUN rm -rf /code/.venv
+
+# Set an argument for architecture that will be passed during build
+ARG TARGETARCH=arm64
+
+# Copy the appropriate .venv based on architecture
+# This will be populated during the Docker build with the specific artifact
+COPY .venv-${TARGETARCH} /code/.venv
 
 ENV PATH="/code/.venv/bin:$PATH"
 
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 
-ENTRYPOINT ["bash", "-c", "python -m alembic upgrade head;", "python main.py"]
+ENTRYPOINT ["bash", "-c", "python -m alembic upgrade head && python main.py"]
