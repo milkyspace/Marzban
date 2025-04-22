@@ -13,18 +13,16 @@ ARG TARGETARCH
 # This will be populated during the Docker build with the specific artifact
 COPY ./venv/${TARGETARCH} /code/.venv
 
-RUN ls -alh ./.venv/lib/python3.13/site-packages
 
 FROM python:$PYTHON_VERSION-slim
 WORKDIR /code
 
 COPY --from=builder /code/ /code/
 
-RUN ls -alh ./.venv/lib/python3.13/site-packages
-
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 RUN chmod +x /code/start.sh
-RUN chmod +x /code/.venv/bin/python
+
+ENV PATH="/code/.venv/bin:$PATH"
 
 ENTRYPOINT ["/code/start.sh"]
