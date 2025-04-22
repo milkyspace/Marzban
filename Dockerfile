@@ -1,6 +1,6 @@
 ARG PYTHON_VERSION=3.12
 
-FROM ghcr.io/astral-sh/uv:python{$PYTHON_VERSION}-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python$PYTHON_VERSION-bookworm-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
