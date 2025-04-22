@@ -1,7 +1,7 @@
 ARG PYTHON_VERSION=3.13
 FROM python:$PYTHON_VERSION-slim-bookworm
 
-COPY --from=builder . /code
+COPY . /code
 WORKDIR /code
 
 ENV PATH="/code/.venv/bin:$PATH"
