@@ -47,10 +47,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: "Set up Python"
+      - name: "Set up uv"
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
+      
+      - name: Set up Python
+        run: uv python install
 
       - name: Install Dependencies
         run: uv sync --frozen --no-dev
@@ -72,10 +75,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: "Set up Python"
+      - name: "Set up uv"
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
+      
+      - name: Set up Python
+        run: uv python install
 
       - name: Install Dependencies
         run: uv sync --frozen --no-dev
