@@ -52,15 +52,18 @@ jobs:
       
       - name: Set up Python
         run: uv python install
+      
+      - name: Set up venv
+        run: uv venv venv_amd64
 
       - name: Install Dependencies
         run: uv sync --frozen --no-dev
       
-      - name: Upload .venv
+      - name: Upload venv
         uses: actions/upload-artifact@v4
         with:
           name: venv-amd64
-          path: .venv
+          path: venv_amd64
           retention-days: 1
 
   build-arm64:
@@ -75,15 +78,18 @@ jobs:
       
       - name: Set up Python
         run: uv python install
+      
+      - name: Set up venv
+        run: uv venv venv_arm64
 
       - name: Install Dependencies
         run: uv sync --frozen --no-dev
       
-      - name: Upload .venv
+      - name: Upload venv
         uses: actions/upload-artifact@v4
         with:
           name: venv-arm64
-          path: .venv
+          path: venv_arm64
           retention-days: 1
 
   build-image:
@@ -103,13 +109,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: venv-amd64
-          path: ./.venv
+          path: ./venv/amd64
         
       - name: Download arm64 venv
         uses: actions/download-artifact@v4
         with:
           name: venv-arm64
-          path: ./.venv-arm64/
+          path: ./venv/arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

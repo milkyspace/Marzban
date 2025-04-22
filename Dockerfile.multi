@@ -12,7 +12,7 @@ ARG TARGETARCH=arm64
 
 # Copy the appropriate .venv based on architecture
 # This will be populated during the Docker build with the specific artifact
-COPY .venv-${TARGETARCH} /code/.venv
+COPY ./venv/${TARGETARCH} /code/.venv
 
 ENV PATH="/code/.venv/bin:$PATH"
 
