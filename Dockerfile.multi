@@ -25,5 +25,6 @@ RUN ls -alh ./.venv/lib/python3.13/site-packages
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 RUN chmod +x /code/start.sh
+RUN chmod +x /code/.venv/bin/python
 
 ENTRYPOINT ["/code/start.sh"]
