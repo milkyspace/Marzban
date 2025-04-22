@@ -71,6 +71,7 @@ jobs:
           file: ./Dockerfile
           tags: |
             gozargah/marzban:${{ github.ref_name }}-amd64
+            gchr.io/gozargah/marzban:${{ github.ref_name }}-amd64
 
   build-arm64-image:
     needs: build-dashboard
@@ -103,4 +104,4 @@ jobs:
           file: ./Dockerfile
           tags: |
             gozargah/marzban:${{ github.ref_name }}-arm64
-
+            gchr.io/gozargah/marzban:${{ github.ref_name }}-arm64
