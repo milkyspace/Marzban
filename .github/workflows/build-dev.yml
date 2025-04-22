@@ -57,7 +57,7 @@ jobs:
         run: uv sync --frozen --no-dev
         
       - name: Download dashboard build
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dashboard-build
           path: ./dashboard/build/
@@ -107,7 +107,7 @@ jobs:
         run: uv sync --frozen --no-dev
         
       - name: Download dashboard build
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dashboard-build
           path: ./dashboard/build/
