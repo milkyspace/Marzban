@@ -57,6 +57,8 @@ jobs:
         run: uv venv venv_amd64
 
       - name: Install Dependencies
+        env:
+          VIRTUAL_ENV: ./venv_amd64
         run: uv sync --frozen --no-dev
       
       - name: Upload venv
@@ -83,6 +85,8 @@ jobs:
         run: uv venv venv_arm64
 
       - name: Install Dependencies
+        env:
+          VIRTUAL_ENV: ./venv_amd64
         run: uv sync --frozen --no-dev
       
       - name: Upload venv
