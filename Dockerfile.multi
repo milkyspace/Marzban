@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION=3.13
-FROM python:$PYTHON_VERSION-slim-bookworm
+FROM python:$PYTHON_VERSION-slim-bookworm as builder
 
 WORKDIR /code
 COPY . /code
@@ -11,7 +11,12 @@ ARG TARGETARCH
 # This will be populated during the Docker build with the specific artifact
 COPY ./venv/${TARGETARCH} /code/.venv
 
-RUN /bin/sh -c rm -rf /code/venv
+RUN rm -rf /code/venv
+
+FROM python:$PYTHON_VERSION-slim-bookworm
+
+WORKDIR /code
+COPY --from=builder . /code
 
 ENV PATH="/code/.venv/bin:$PATH"
 
