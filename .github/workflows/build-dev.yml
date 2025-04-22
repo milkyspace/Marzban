@@ -130,12 +130,15 @@ jobs:
           export DOCKER_CLI_EXPERIMENTAL=enabled
 
           docker manifest create — amend gozargah/marzban:${{ github.ref_name }} \
+
+          # Create a manifest list pointing to both architectures
+          docker manifest create gozargah/marzban:${{ github.ref_name }} \
             --amend gozargah/marzban:${{ github.ref_name }}-arm64 \
             --amend gozargah/marzban:${{ github.ref_name }}-amd64
 
           # Annotate each architecture (optional but explicit)
-          docker manifest annotate gozargah/marzban:${{ github.ref_name }} gozargah/marzban:${{ github.ref_name }}-arm64 — os linux — arch arm64
-          docker manifest annotate gozargah/marzban:${{ github.ref_name }} gozargah/marzban:${{ github.ref_name }}-amd64 — os linux — arch amd64
+          docker manifest annotate --arch arm64 gozargah/marzban:${{ github.ref_name }} gozargah/marzban:${{ github.ref_name }}-arm64
+          docker manifest annotate --arch amd64 gozargah/marzban:${{ github.ref_name }} gozargah/marzban:${{ github.ref_name }}-amd64
 
           # Push the manifest to the registry
-          docker manifest push — purge gozargah/marzban:${{ github.ref_name }}
+          docker manifest push gozargah/marzban:${{ github.ref_name }}
