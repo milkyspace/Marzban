@@ -23,6 +23,6 @@ COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 RUN chmod +x /code/start.sh
 
-ENV PATH="/code/.venv/bin:$PATH"
+# ENV PATH="/code/.venv/bin:$PATH"
 
 ENTRYPOINT ["/code/start.sh"]
