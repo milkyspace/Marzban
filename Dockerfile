@@ -31,5 +31,6 @@ ENV PATH="/code/.venv/bin:$PATH"
 
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
+RUN chmod +x /code/start.sh
 
-ENTRYPOINT ["bash", "-c", "python -m alembic upgrade head && python main.py"]
+ENTRYPOINT ["/code/start.sh"]
