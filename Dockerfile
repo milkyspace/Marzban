@@ -1,7 +1,6 @@
 ARG PYTHON_VERSION=3.12
-ARG VENV_PATH=/code/.venv/bin/
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python{$PYTHON_VERSION}-bookworm-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -22,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 
-FROM python:3.12-slim-bookworm
+FROM python:$PYTHON_VERSION-slim-bookworm
 
 COPY --from=builder /build /code
 WORKDIR /code
