@@ -13,7 +13,7 @@ ARG TARGETARCH
 # This will be populated during the Docker build with the specific artifact
 COPY ./venv/${TARGETARCH} /code/.venv
 
-RUN ls -alh ./.venv
+RUN ls -alh ./.venv/bin
 
 FROM python:$PYTHON_VERSION-slim
 WORKDIR /code
@@ -22,7 +22,7 @@ COPY . /code
 
 COPY --from=builder /code/.venv /code/.venv
 
-RUN ls -alh ./.venv
+RUN ls -alh ./.venv/bin
 
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
