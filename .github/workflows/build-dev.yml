@@ -83,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: venv-arm64
-          path: ./venv
+          path: ./.venv
           retention-days: 1
 
   build-image:
@@ -103,7 +103,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: venv-amd64
-          path: ./.venv-amd64/
+          path: ./.venv
         
       - name: Download arm64 venv
         uses: actions/download-artifact@v4
