@@ -17,3 +17,4 @@ docker-compose*.yml
 v2ray-core
 xray-core
 tests
+venv
