@@ -23,6 +23,7 @@ COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 RUN chmod +x /code/start.sh
 RUN chmod +x /code/.venv/bin/python
+RUN chmod +x /code/.venv/bin/*
 
 # ENV PATH="/code/.venv/bin:$PATH"
 
