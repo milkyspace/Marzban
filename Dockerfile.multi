@@ -4,6 +4,8 @@ FROM python:$PYTHON_VERSION-slim as builder
 WORKDIR /code
 COPY . /code
 
+RUN rm -rf venv
+
 # Set an argument for architecture that will be passed during build
 ARG TARGETARCH
 
