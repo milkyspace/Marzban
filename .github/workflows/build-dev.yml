@@ -59,7 +59,7 @@ jobs:
       - name: Install Dependencies
         env:
           VIRTUAL_ENV: ./venv_amd64
-        run: uv sync --frozen --no-dev
+        run: uv sync --frozen --no-dev --venv venv_amd64
       
       - name: Upload venv
         uses: actions/upload-artifact@v4
@@ -87,7 +87,7 @@ jobs:
       - name: Install Dependencies
         env:
           VIRTUAL_ENV: ./venv_amd64
-        run: uv sync --frozen --no-dev
+        run: uv sync --frozen --no-dev --venv venv_arm64
       
       - name: Upload venv
         uses: actions/upload-artifact@v4
