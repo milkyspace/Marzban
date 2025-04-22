@@ -30,7 +30,7 @@ jobs:
         working-directory: ./dashboard
         run: pnpm i
 
-      - name: Build project
+      - name: Build dashboard
         run: ./build_dashboard.sh
         
       - name: Upload dashboard build
