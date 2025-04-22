@@ -1,8 +1,10 @@
-ARG PYTHON_VERSION=3.13
-FROM python:$PYTHON_VERSION-slim-bookworm as builder
+ARG PYTHON_VERSION=3.12
+FROM python:$PYTHON_VERSION-slim as builder
 
 WORKDIR /code
 COPY . /code
+
+RUN rm -rf /code/venv
 
 # Set an argument for architecture that will be passed during build
 ARG TARGETARCH
@@ -11,9 +13,7 @@ ARG TARGETARCH
 # This will be populated during the Docker build with the specific artifact
 COPY ./venv/${TARGETARCH} /code/.venv
 
-RUN rm -rf /code/venv
-
-FROM python:$PYTHON_VERSION-slim-bookworm
+FROM python:$PYTHON_VERSION-slim
 
 COPY --from=builder . /code
 
