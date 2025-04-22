@@ -14,10 +14,9 @@ ARG TARGETARCH
 COPY ./venv/${TARGETARCH} /code/.venv
 
 FROM python:$PYTHON_VERSION-slim
-
-COPY --from=builder . /code
-
 WORKDIR /code
+
+COPY --from=builder /code/ /code/
 
 RUN ls -alh .
 
