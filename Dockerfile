@@ -1,4 +1,5 @@
 ARG PYTHON_VERSION=3.12
+ARG VENV_PATH=/code/.venv/bin/
 
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
@@ -24,10 +25,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM python:3.12-slim-bookworm
 
 COPY --from=builder /build /code
+WORKDIR /code
 
 ENV PATH="/code/.venv/bin:$PATH"
 
 COPY cli_wrapper.sh /usr/bin/marzban-cli
 RUN chmod +x /usr/bin/marzban-cli
 
-ENTRYPOINT ["bash","-c","alembic upgrade head && python main.py"]
+ENTRYPOINT ["bash", "-c", "python -m alembic upgrade head;", "python main.py"]
