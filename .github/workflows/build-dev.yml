@@ -127,7 +127,7 @@ jobs:
 
       - name: Remove architecture-specific images
         run: |
-          docker rmi ${{ env.IMAGE }}-amd64
-          docker rmi ${{ env.IMAGE }}-arm64
-          docker rmi ${{ env.GHCR_IMAGE }}-amd64
-          docker rmi ${{ env.GHCR_IMAGE }}-arm64
+          docker image rm ${{ env.IMAGE }}-amd64
+          docker image rm ${{ env.IMAGE }}-arm64
+          docker image rm ${{ env.GHCR_IMAGE }}-amd64
+          docker image rm ${{ env.GHCR_IMAGE }}-arm64
