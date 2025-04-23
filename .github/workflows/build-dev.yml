@@ -6,6 +6,10 @@ on:
       - 'dev'
       - 'next-workflow'
 
+env:
+  IMAGE: gozargah/marzban:${{ github.ref_name }}
+  GHCR_IMAGE: ghcr.io/gozargah/marzban:${{ github.ref_name }}
+
 jobs:
   build-dashboard:
     runs-on: ubuntu-latest
@@ -40,9 +44,19 @@ jobs:
           path: ./dashboard/build/
           retention-days: 1
 
-  build-amd64-image:
+  build-images:
     needs: build-dashboard
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,7 +75,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -69,85 +83,44 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push amd64 image
+      - name: Build and push ${{ matrix.arch }} image
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           push: true
           file: ./Dockerfile
           tags: |
-            gozargah/marzban:${{ github.ref_name }}-amd64
-            ghcr.io/gozargah/marzban:${{ github.ref_name }}-amd64
-
-  build-arm64-image:
-    needs: build-dashboard
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download dashboard build
-        uses: actions/download-artifact@v4
-        with:
-          name: dashboard-build
-          path: ./dashboard/build/
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push arm64 image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64
-          push: true
-          file: ./Dockerfile
-          tags: |
-            gozargah/marzban:${{ github.ref_name }}-arm64
-            ghcr.io/gozargah/marzban:${{ github.ref_name }}-arm64
+            ${{ env.IMAGE }}-${{ matrix.arch }}
+            ${{ env.GHCR_IMAGE }}-${{ matrix.arch }}
 
   push-manifest:
-    needs: [build-amd64-image, build-arm64-image]
+    needs: [build-images]
     runs-on: ubuntu-latest
     steps:
-
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: int128/docker-manifest-create-action@v2
+        with:
+          tags: ${{ env.IMAGE }}
+          sources: |
+            ${{ env.IMAGE }}-amd64
+            ${{ env.IMAGE }}-arm64
       
       - uses: int128/docker-manifest-create-action@v2
         with:
-          tags: gozargah/marzban:${{ github.ref_name }}
+          tags: ${{ env.GHCR_IMAGE }}
           sources: |
-            gozargah/marzban:${{ github.ref_name }}-amd64
-            gozargah/marzban:${{ github.ref_name }}-arm64
-      
-      - uses: int128/docker-manifest-create-action@v2
-        with:
-          tags: ghcr.io/gozargah/marzban:${{ github.ref_name }}
-          sources: |
-            ghcr.io/gozargah/marzban:${{ github.ref_name }}-amd64
-            ghcr.io/gozargah/marzban:${{ github.ref_name }}-arm64
+            ${{ env.GHCR_IMAGE }}-amd64
+            ${{ env.GHCR_IMAGE }}-arm64
