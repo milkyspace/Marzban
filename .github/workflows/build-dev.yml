@@ -124,10 +124,3 @@ jobs:
           sources: |
             ${{ env.GHCR_IMAGE }}-amd64
             ${{ env.GHCR_IMAGE }}-arm64
-
-      - name: Remove architecture-specific images
-        run: |
-          docker image rm ${{ env.IMAGE }}-amd64
-          docker image rm ${{ env.IMAGE }}-arm64
-          docker image rm ${{ env.GHCR_IMAGE }}-amd64
-          docker image rm ${{ env.GHCR_IMAGE }}-arm64
