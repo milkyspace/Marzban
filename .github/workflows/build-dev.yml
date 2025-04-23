@@ -3,8 +3,8 @@ name: Build-Docker-dev
 on:
   push:
     branches:
-      - 'dev'
-      - 'next-workflow'
+      - "dev"
+      - "next-workflow"
 
 env:
   IMAGE: gozargah/marzban:${{ github.ref_name }}
@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
           cache-dependency-path: ./dashboard/pnpm-lock.yaml
 
       - name: Install dependencies
@@ -117,10 +117,17 @@ jobs:
           sources: |
             ${{ env.IMAGE }}-amd64
             ${{ env.IMAGE }}-arm64
-      
+
       - uses: int128/docker-manifest-create-action@v2
         with:
           tags: ${{ env.GHCR_IMAGE }}
           sources: |
             ${{ env.GHCR_IMAGE }}-amd64
             ${{ env.GHCR_IMAGE }}-arm64
+
+      - name: Remove architecture-specific images
+        run: |
+          docker rmi ${{ env.IMAGE }}-amd64
+          docker rmi ${{ env.IMAGE }}-arm64
+          docker rmi ${{ env.GHCR_IMAGE }}-amd64
+          docker rmi ${{ env.GHCR_IMAGE }}-arm64
