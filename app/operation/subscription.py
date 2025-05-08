@@ -9,6 +9,7 @@ from app.db.crud import get_user_usages, update_user_sub
 from app.db.models import User
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import UserResponse
+from app.models.settings import ConfigFormat
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
 from config import (
@@ -27,13 +28,13 @@ from config import (
 from . import BaseOperation
 
 client_config = {
-    "clash-meta": {"config_format": "clash-meta", "media_type": "text/yaml", "as_base64": False},
-    "sing-box": {"config_format": "sing-box", "media_type": "application/json", "as_base64": False},
-    "clash": {"config_format": "clash", "media_type": "text/yaml", "as_base64": False},
-    "links-base64": {"config_format": "links", "media_type": "text/plain", "as_base64": True},
-    "links": {"config_format": "links", "media_type": "text/plain", "as_base64": False},
-    "outline": {"config_format": "outline", "media_type": "application/json", "as_base64": False},
-    "xray": {"config_format": "xray", "media_type": "application/json", "as_base64": False},
+    ConfigFormat.clash_meta: {"config_format": "clash-meta", "media_type": "text/yaml", "as_base64": False},
+    ConfigFormat.clash: {"config_format": "clash", "media_type": "text/yaml", "as_base64": False},
+    ConfigFormat.sing_box: {"config_format": "sing-box", "media_type": "application/json", "as_base64": False},
+    ConfigFormat.links_base64: {"config_format": "links", "media_type": "text/plain", "as_base64": True},
+    ConfigFormat.links: {"config_format": "links", "media_type": "text/plain", "as_base64": False},
+    ConfigFormat.outline: {"config_format": "outline", "media_type": "application/json", "as_base64": False},
+    ConfigFormat.xray: {"config_format": "xray", "media_type": "application/json", "as_base64": False},
 }
 
 

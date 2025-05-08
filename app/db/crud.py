@@ -32,6 +32,7 @@ from app.db.models import (
     ProxyInbound,
     ReminderType,
     System,
+    Settings,
     User,
     UserDataLimitResetStrategy,
     UserStatus,
@@ -44,6 +45,7 @@ from app.models.group import GroupCreate, GroupModify
 from app.models.host import CreateHost
 from app.models.node import NodeCreate, NodeModify
 from app.models.proxy import ProxyTable
+from app.models.settings import SettingsSchema
 from app.models.stats import (
     NodeStats,
     NodeStatsList,
@@ -2172,3 +2174,27 @@ async def generate_node_usage(session: AsyncSession, fake, hours_back=24):
 
     session.add_all(records)
     await session.commit()
+
+
+async def get_settings(db: AsyncSession) -> Settings:
+    """
+    Retrieves the Settings.
+
+    Args:
+        db (AsyncSession): Database session.
+
+    Returns:
+        Settings: Settings information.
+    """
+    return (await db.execute(select(Settings))).scalar_one_or_none()
+
+
+async def modify_settings(db: AsyncSession, db_setting: Settings, modify: SettingsSchema) -> Settings:
+    settings_data = modify.model_dump()
+
+    for key, value in settings_data.items():
+        setattr(db_setting, key, value)
+    
+    await db.commit()
+    await db.refresh(db_setting)
+    return settings_data

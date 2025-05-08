@@ -126,10 +126,8 @@ async def send_pending_notifications_before_shutdown():
     await send_notifications()
 
 
-if WEBHOOK_ADDRESS:
-    logger.info("Webhook system initialized")
-    scheduler.add_job(
-        send_notifications, "interval", seconds=JOB_SEND_NOTIFICATIONS_INTERVAL, max_instances=1, coalesce=True
-    )
-    scheduler.add_job(delete_expired_reminders, "interval", hours=6, start_date=dt.now(tz.utc) + td(minutes=5))
-    on_shutdown(send_pending_notifications_before_shutdown)
+scheduler.add_job(
+    send_notifications, "interval", seconds=JOB_SEND_NOTIFICATIONS_INTERVAL, max_instances=1, coalesce=True
+)
+scheduler.add_job(delete_expired_reminders, "interval", hours=6, start_date=dt.now(tz.utc) + td(minutes=5))
+on_shutdown(send_pending_notifications_before_shutdown)
