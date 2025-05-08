@@ -12,6 +12,13 @@ class Telegram(BaseModel):
     proxy_url: str | None
 
 
+class Discord(BaseModel):
+    enable: bool
+    token: str | None
+
+    proxy_url: str | None
+
+
 class WebhookData(BaseModel):
     url: str
     secret: str
@@ -88,6 +95,7 @@ class Subscription(BaseModel):
 
 class Settings(BaseModel):
     telegram: Telegram | None = None
+    discord: Discord | None = None
     webhook: Webhook | None = None
     notfication_settings: NotficationSettings | None = None
     notfication_enable: NotficationEnable | None = None
