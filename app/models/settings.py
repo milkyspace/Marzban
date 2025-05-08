@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Telegram(BaseModel):
@@ -8,10 +8,11 @@ class Telegram(BaseModel):
     token: str | None
     webhook_url: str | None
     webhook_secret: str | None
+
     proxy_url: str | None
 
 
-class Webhook(BaseModel):
+class WebhookData(BaseModel):
     url: str
     secret: str
 
@@ -20,7 +21,6 @@ class NotficationSettings(BaseModel):
     # Define Which Notfication System Work's
     notify_telegram: bool
     notify_discord: bool
-    notify_webhook: bool
 
     # Telegram Settings
     telegram_api_token: str | None
@@ -31,16 +31,19 @@ class NotficationSettings(BaseModel):
     # Discord Settings
     discord_webhook_url: str | None
 
-    # Webhook Settings
-    webhooks: list[Webhook]
-    days_left: list[int]
-    usage_percent: list[int]
-    timeout: int
-    recurrent: int
-
     # Proxy Settings
     notfication_proxy_url: str | None
-    webhook_proxy_url: str | None
+
+
+class Webhook(BaseModel):
+    enable: bool
+    webhooks: list[WebhookData]
+    days_left: list[int]
+    usage_percent: list[int]
+    timeout: int = Field(gt=1)
+    recurrent: int = Field(gt=1)
+
+    proxy_url: str | None
 
 
 class NotficationEnable(BaseModel):
@@ -84,7 +87,8 @@ class Subscription(BaseModel):
 
 
 class Settings(BaseModel):
-    telegram: Telegram | None
-    notfication_settings: NotficationSettings | None
-    notfication_enable: NotficationEnable | None
-    subscription: Subscription | None
+    telegram: Telegram | None = None
+    webhook: Webhook | None = None
+    notfication_settings: NotficationSettings | None = None
+    notfication_enable: NotficationEnable | None = None
+    subscription: Subscription | None = None
