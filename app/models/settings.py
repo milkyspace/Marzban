@@ -1,28 +1,32 @@
 from enum import Enum
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 from .validators import ProxyValidator, DiscordValidator, ListValidator
 
 
 class Telegram(BaseModel):
-    enable: bool
-    token: str | None
-    webhook_url: str | None
-    webhook_secret: str | None
-
-    proxy_url: str | None
+    enable: bool = Field(default=False)
+    token: str | None = Field(default=None)
+    webhook_url: str | None = Field(default=None)
+    webhook_secret: str | None = Field(default=None)
+    proxy_url: str | None = Field(default=None)
 
     @field_validator("proxy_url")
     @classmethod
     def validate_proxy_url(cls, v):
         return ProxyValidator.validate_proxy_url(v)
+
+    @model_validator(mode="after")
+    def check_enable_requires_token_and_url(self):
+        if self.enable and (not self.token or not self.webhook_url):
+            raise ValueError("Telegram cannot be enabled without both token and webhook_url.")
+        return self
 
 
 class Discord(BaseModel):
-    enable: bool
+    enable: bool = Field(default=False)
     token: str | None
-
     proxy_url: str | None
 
     @field_validator("proxy_url")
@@ -30,21 +34,26 @@ class Discord(BaseModel):
     def validate_proxy_url(cls, v):
         return ProxyValidator.validate_proxy_url(v)
 
+    @model_validator(mode="after")
+    def check_enable_requires_token(self):
+        if self.enable and not self.token:
+            raise ValueError("Discord cannot be enabled without token.")
+        return self
+
 
 class WebhookInfo(BaseModel):
-    url: HttpUrl
+    url: str
     secret: str
 
 
 class Webhook(BaseModel):
-    enable: bool
-    webhooks: list[WebhookInfo]
-    days_left: list[int]
-    usage_percent: list[int]
+    enable: bool = Field(default=False)
+    webhooks: list[WebhookInfo] = Field(default=[])
+    days_left: list[int] = Field(default=[])
+    usage_percent: list[int] = Field(default=[])
     timeout: int = Field(gt=1)
     recurrent: int = Field(gt=1)
-
-    proxy_url: str | None
+    proxy_url: str | None = Field(default=None)
 
     @field_validator("proxy_url", mode="before")
     @classmethod
@@ -56,23 +65,29 @@ class Webhook(BaseModel):
     def validate_lists(cls, v):
         return ListValidator.not_null_list(v, "list")
 
+    @model_validator(mode="after")
+    def check_enable_requires_webhookinfo(self):
+        if self.enable and (not self.webhooks or len(self.webhooks) == 0):
+            raise ValueError("Webhook cannot be enabled without at least one WebhookInfo.")
+        return self
+
 
 class NotficationSettings(BaseModel):
     # Define Which Notfication System Work's
-    notify_telegram: bool
-    notify_discord: bool
+    notify_telegram: bool = Field(default=False)
+    notify_discord: bool = Field(default=False)
 
     # Telegram Settings
-    telegram_api_token: str | None
-    telegram_admin_id: int | None
-    telegram_channel_id: int | None
-    telegram_topic_id: int | None
+    telegram_api_token: str | None = Field(default=None)
+    telegram_admin_id: int | None = Field(default=None)
+    telegram_channel_id: int | None = Field(default=None)
+    telegram_topic_id: int | None = Field(default=None)
 
     # Discord Settings
-    discord_webhook_url: str | None
+    discord_webhook_url: str | None = Field(default=None)
 
     # Proxy Settings
-    proxy_url: str | None
+    proxy_url: str | None = Field(default=None)
 
     max_retries: int = Field(gt=1)
 
@@ -127,10 +142,10 @@ class SubFormatEnable(BaseModel):
 
 
 class Subscription(BaseModel):
-    url_prefix: str = ""
-    update_interval: int
-    support_url: str
-    profile_title: str
+    url_prefix: str = Field(default="")
+    update_interval: int = Field(default=12)
+    support_url: str = Field(default="https://t.me/")
+    profile_title: str = Field(default="Subscription")
 
     host_status_filter: bool
 

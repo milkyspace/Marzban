@@ -37,11 +37,12 @@ from app.models.user import (
     UserResponse,
     UsersResponse,
 )
+from app.settings import subscription_settings
 from app.node import node_manager as node_manager
 from app.operation import BaseOperation
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
+from config import XRAY_SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
 
@@ -53,7 +54,7 @@ class UserOperation(BaseOperation):
         url_prefix = (
             user.admin.sub_domain.replace("*", salt)
             if user.admin and user.admin.sub_domain
-            else (XRAY_SUBSCRIPTION_URL_PREFIX).replace("*", salt)
+            else ((await subscription_settings()).url_prefix).replace("*", salt)
         )
         token = await create_subscription_token(user.username)
         return f"{url_prefix}/{XRAY_SUBSCRIPTION_PATH}/{token}"
