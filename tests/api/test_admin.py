@@ -1,8 +1,9 @@
-from tests.api import client
 from fastapi import status
 
+from tests.api import client
 
-def test_admin_login(mock_db_session):
+
+def test_admin_login():
     """Test that the admin login route is accessible."""
 
     response = client.post(
@@ -14,9 +15,10 @@ def test_admin_login(mock_db_session):
     return response.json()["access_token"]
 
 
-def test_get_admin(mock_db_session, access_token):
+def test_get_admin(access_token):
     """Test that the admin get route is accessible."""
 
+    # mock_settings(monkeypatch)
     username = "testadmin"
     response = client.get(
         url="/api/admin",
@@ -26,7 +28,7 @@ def test_get_admin(mock_db_session, access_token):
     assert response.json()["username"] == username
 
 
-def test_admin_create(mock_db_session, access_token):
+def test_admin_create(access_token):
     """Test that the admin create route is accessible."""
 
     username = "testadmincreate"
@@ -53,7 +55,7 @@ def test_admin_db_login():
     assert "access_token" in response.json()
 
 
-def test_update_admin(mock_db_session, access_token):
+def test_update_admin(access_token):
     """Test that the admin update route is accessible."""
 
     username = "testadmincreate"
@@ -73,7 +75,7 @@ def test_update_admin(mock_db_session, access_token):
     assert response.json()["is_disabled"] is True
 
 
-def test_get_admins(mock_db_session, access_token):
+def test_get_admins(access_token):
     """Test that the admins get route is accessible."""
 
     username = "testadmincreate"
@@ -98,7 +100,7 @@ def test_disable_admin():
     assert response.json()["detail"] == "your account has been disabled"
 
 
-def test_admin_delete(mock_db_session, access_token):
+def test_admin_delete(access_token):
     """Test that the admin delete route is accessible."""
 
     username = "testadmincreate"

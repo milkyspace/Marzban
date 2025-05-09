@@ -5,7 +5,7 @@ from tests.api import client
 id = 1
 
 
-def test_user_template_delete(mock_db_session, access_token):
+def test_user_template_delete( access_token):
     """Test that the user template delete route is accessible."""
     response = client.delete(
         f"/api/user_template/{id}",
@@ -14,7 +14,7 @@ def test_user_template_delete(mock_db_session, access_token):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
-def test_user_template_create(mock_db_session, access_token):
+def test_user_template_create( access_token):
     """Test that the user template create route is accessible."""
     response = client.post(
         "/api/user_template",
@@ -43,7 +43,7 @@ def test_user_template_create(mock_db_session, access_token):
     id = response.json()["id"]
 
 
-def test_user_templates_get(mock_db_session, access_token):
+def test_user_templates_get( access_token):
     """Test that the user template get route is accessible."""
     response = client.get(
         "/api/user_templates",
@@ -53,7 +53,7 @@ def test_user_templates_get(mock_db_session, access_token):
     assert len(response.json()) > 0
 
 
-def test_user_template_update(mock_db_session, access_token):
+def test_user_template_update( access_token):
     """Test that the user template update route is accessible."""
     response = client.put(
         f"/api/user_template/{id}",
@@ -77,7 +77,7 @@ def test_user_template_update(mock_db_session, access_token):
     assert response.json()["extra_settings"]["method"] == "xchacha20-poly1305"
 
 
-def test_user_template_get_by_id(mock_db_session, access_token):
+def test_user_template_get_by_id( access_token):
     """Test that the user template get by id route is accessible."""
     response = client.get(
         f"/api/user_template/{id}",

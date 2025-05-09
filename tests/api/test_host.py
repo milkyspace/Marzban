@@ -13,10 +13,10 @@ host_data = {
 }
 
 
-def test_host_create(mock_db_session, access_token):
+def test_host_create( access_token):
     """Test that the host create route is accessible."""
 
-    groups = test_groups_get(mock_db_session, access_token)
+    groups = test_groups_get( access_token)
 
     for i, group in enumerate(groups):
         for j, inbound in enumerate(group["inbound_tags"]):
@@ -37,7 +37,7 @@ def test_host_create(mock_db_session, access_token):
             assert response.json()["inbound_tag"] == inbound
 
 
-def test_host_get(mock_db_session, access_token):
+def test_host_get( access_token):
     """Test that the host get route is accessible."""
     response = client.get(
         "/api/hosts",
@@ -47,7 +47,7 @@ def test_host_get(mock_db_session, access_token):
     assert len(response.json()) > 0
 
 
-def test_host_update(mock_db_session, access_token):
+def test_host_update( access_token):
     """Test that the host update route is accessible."""
     response = client.put(
         "/api/host/1",
@@ -70,7 +70,7 @@ def test_host_update(mock_db_session, access_token):
     assert response.json()["inbound_tag"] == "Trojan Websocket TLS"
 
 
-def test_host_delete(mock_db_session, access_token):
+def test_host_delete( access_token):
     """Test that the host delete route is accessible."""
     response = client.delete(
         "/api/host/1",

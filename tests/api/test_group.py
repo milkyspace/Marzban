@@ -7,7 +7,7 @@ from tests.api import client
 group_names = ["testgroup", "testgroup2", "testgroup3"]
 
 
-def test_group_create(mock_db_session, access_token):
+def test_group_create( access_token):
     """Test that the group create route is accessible."""
 
     inbounds = client.get(
@@ -31,7 +31,7 @@ def test_group_create(mock_db_session, access_token):
             assert inbound in random_inbound
 
 
-def test_group_update(mock_db_session, access_token):
+def test_group_update( access_token):
     """Test that the group update route is accessible."""
     response = client.put(
         url="/api/group/1",
@@ -43,7 +43,7 @@ def test_group_update(mock_db_session, access_token):
     assert response.json()["is_disabled"] is True
 
 
-def test_group_delete(mock_db_session, access_token):
+def test_group_delete( access_token):
     """Test that the group delete route is accessible."""
     response = client.delete(
         url="/api/group/1",
@@ -52,7 +52,7 @@ def test_group_delete(mock_db_session, access_token):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
-def test_group_get_by_id(mock_db_session, access_token):
+def test_group_get_by_id( access_token):
     """Test that the group get by id route is accessible."""
     response = client.get(
         url="/api/group/2",
@@ -62,7 +62,7 @@ def test_group_get_by_id(mock_db_session, access_token):
     assert response.json()["name"] == "testgroup2"
 
 
-def test_groups_get(mock_db_session, access_token):
+def test_groups_get( access_token):
     """Test that the group get route is accessible."""
     response = client.get(
         url="/api/groups",
