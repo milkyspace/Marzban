@@ -6,7 +6,7 @@ from . import GetTestDB, client
 @pytest.fixture
 def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = GetTestDB()
-    monkeypatch.setattr("app.db.GetDB.__call__", lambda *args, **kwargs: db_session)
+    monkeypatch.setattr("app.db.GetDB", GetTestDB)
     return db_session
 
 
