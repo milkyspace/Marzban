@@ -8,7 +8,6 @@ from tests.api import client
 from .test_user_template import test_user_template_create  # noqa
 
 
-@pytest.mark.asyncio(loop_scope="session")
 def test_user_create_active(access_token):
     """Test that the user create active route is accessible."""
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
@@ -43,7 +42,6 @@ def test_user_create_active(access_token):
     assert response_formatted == expected_formatted
 
 
-@pytest.mark.asyncio(loop_scope="session")
 def test_user_create_on_hold(access_token):
     """Test that the user create on hold route is accessible."""
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
@@ -91,7 +89,6 @@ def test_users_get(access_token):
     return response.json()["users"]
 
 
-@pytest.mark.asyncio(loop_scope="session")
 def test_user_subscriptions(access_token):
     """Test that the user subscriptions route is accessible."""
     user_subscription_formats = ["info", "sing_box", "clash_meta", "clash", "outline", "links", "links_base64", "xray"]

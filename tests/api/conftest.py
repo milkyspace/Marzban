@@ -1,4 +1,5 @@
 import pytest
+
 from . import client
 
 
@@ -9,3 +10,14 @@ def access_token():
         data={"username": "testadmin", "password": "testadmin", "grant_type": "password"},
     )
     return response.json()["access_token"]
+
+
+@pytest.fixture
+def disable_cache(monkeypatch: pytest.MonkeyPatch):
+    def dummy_cached(*args, **kwargs):
+        def wrapper(func):
+            return func  # bypass caching
+
+        return wrapper
+
+    monkeypatch.setattr("app.settings.cached", dummy_cached)
