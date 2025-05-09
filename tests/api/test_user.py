@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi import status
 
 from tests.api import client
@@ -88,6 +89,7 @@ def test_users_get(access_token):
     return response.json()["users"]
 
 
+@pytest.mark.asyncio(loop_scope="session")
 def test_user_subscriptions(access_token):
     """Test that the user subscriptions route is accessible."""
     user_subscription_formats = ["info", "sing_box", "clash_meta", "clash", "outline", "links", "links_base64", "xray"]
