@@ -1,6 +1,6 @@
 import pytest
 
-from . import client
+from . import GetTestDB, client
 
 
 @pytest.fixture
@@ -21,3 +21,8 @@ def disable_cache(monkeypatch: pytest.MonkeyPatch):
         return wrapper
 
     monkeypatch.setattr("app.settings.cached", dummy_cached)
+
+
+@pytest.fixture
+def patch_db(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("app.db.GetDB.__call__", lambda *args, **kwargs: GetTestDB)
