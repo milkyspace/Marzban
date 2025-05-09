@@ -51,10 +51,11 @@ class UserOperation(BaseOperation):
     @staticmethod
     async def generate_subscription_url(user: UserResponse):
         salt = secrets.token_hex(8)
+        settings = await subscription_settings()
         url_prefix = (
             user.admin.sub_domain.replace("*", salt)
             if user.admin and user.admin.sub_domain
-            else ((await subscription_settings()).url_prefix).replace("*", salt)
+            else (settings.url_prefix).replace("*", salt)
         )
         token = await create_subscription_token(user.username)
         return f"{url_prefix}/{XRAY_SUBSCRIPTION_PATH}/{token}"

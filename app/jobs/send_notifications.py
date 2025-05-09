@@ -84,7 +84,7 @@ async def send_notifications():
         # Don't requeue failed items if webhook disabled
         if not settings.enable:
             return
-        
+
         # Requeue failed items at the end
         for notif in failed_to_requeue:
             await queue.put(notif)

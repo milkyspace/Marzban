@@ -25,7 +25,6 @@ from app.jobs.dependencies import SYSTEM_ADMIN
 from config import JOB_REVIEW_USERS_INTERVAL
 
 
-
 logger = get_logger("review-users")
 
 

@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .validators import ProxyValidator, DiscordValidator, ListValidator
 
@@ -155,9 +155,9 @@ class Subscription(BaseModel):
 
 
 class SettingsSchema(BaseModel):
-    telegram: Telegram | None = None
-    discord: Discord | None = None
-    webhook: Webhook | None = None
+    telegram: Telegram | None = Field(default=None)
+    discord: Discord | None = Field(default=None)
+    webhook: Webhook | None = Field(default=None)
     notfication_settings: NotficationSettings = Field(default_factory=NotficationSettings)
     notfication_enable: NotficationEnable = Field(default_factory=NotficationEnable)
     subscription: Subscription = Field(default_factory=Subscription)

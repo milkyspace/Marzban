@@ -27,8 +27,17 @@ class SettingsOperation(BaseOperation):
         return await get_settings(db)
 
     async def modify_settings(self, db: AsyncSession, modify: SettingsSchema) -> SettingsSchema:
-        db_settings = await self.get_settings(db)
-        old_settings = SettingsSchema.model_validate(db_settings)
+        db_settings = await get_settings(db)
+
+        old_settings_dict = {
+            "telegram": db_settings.telegram,
+            "discord": db_settings.discord,
+            "webhook": db_settings.webhook,
+            "notfication_settings": db_settings.notfication_settings,
+            "notfication_enable": db_settings.notfication_enable,
+            "subscription": db_settings.subscription,
+        }
+        old_settings = SettingsSchema.model_validate(old_settings_dict)
 
         db_settings = await modify_settings(db, db_settings, modify)
         new_settings = SettingsSchema.model_validate(db_settings)
