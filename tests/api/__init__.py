@@ -47,9 +47,8 @@ if TEST_FROM == "local":
 
 
 class GetTestDB:
-    def __init__(self, from_="it self"):
+    def __init__(self):
         self.db = TestSession()
-        print(from_)
 
     async def __aenter__(self):
         return self.db
@@ -62,7 +61,7 @@ class GetTestDB:
 
 
 async def get_test_db():
-    async with GetTestDB("fastAPI") as db:
+    async with GetTestDB() as db:
         yield db
 
 

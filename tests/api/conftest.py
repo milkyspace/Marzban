@@ -1,16 +1,16 @@
+from unittest.mock import AsyncMock
+
 import pytest
 
-import app.db
-
-from . import GetTestDB, client
+from . import TestSession, client
 
 
 @pytest.fixture(autouse=True)
 def mock_db_session(monkeypatch: pytest.MonkeyPatch):
-    db_session = GetTestDB()
-    # mock_getdb = MagicMock(return_value=db_session)
-    monkeypatch.setattr(app.db, "GetDB", db_session)
-    # return mock_getdb
+    db_session = AsyncMock()
+    db_session.__aenter__.return_value = TestSession
+    db_session.__aexit__.return_value = None
+    monkeypatch.setattr("app.db.GetDB", db_session)
     return db_session
 
 
