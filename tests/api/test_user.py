@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from fastapi import status
 
 from tests.api import client
@@ -8,7 +7,7 @@ from tests.api import client
 from .test_user_template import test_user_template_create  # noqa
 
 
-def test_user_create_active(access_token):
+def test_user_create_active(mock_db_session, access_token):
     """Test that the user create active route is accessible."""
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
@@ -42,7 +41,7 @@ def test_user_create_active(access_token):
     assert response_formatted == expected_formatted
 
 
-def test_user_create_on_hold(access_token):
+def test_user_create_on_hold(mock_db_session, access_token):
     """Test that the user create on hold route is accessible."""
     expire = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=30)
     response = client.post(
@@ -78,7 +77,7 @@ def test_user_create_on_hold(access_token):
     assert response_formatted == expected_formatted
 
 
-def test_users_get(access_token):
+def test_users_get(mock_db_session, access_token):
     """Test that the users get route is accessible."""
     response = client.get(
         "/api/users?load_sub=true",
@@ -89,11 +88,11 @@ def test_users_get(access_token):
     return response.json()["users"]
 
 
-def test_user_subscriptions(access_token):
+def test_user_subscriptions(mock_db_session, access_token):
     """Test that the user subscriptions route is accessible."""
     user_subscription_formats = ["info", "sing_box", "clash_meta", "clash", "outline", "links", "links_base64", "xray"]
 
-    users = test_users_get(access_token)
+    users = test_users_get(mock_db_session, access_token)
 
     for user in users:
         for usf in user_subscription_formats:
@@ -102,7 +101,7 @@ def test_user_subscriptions(access_token):
             assert response.status_code == status.HTTP_200_OK
 
 
-def test_user_get(access_token):
+def test_user_get(mock_db_session, access_token):
     """Test that the user get by id route is accessible."""
     response = client.get(
         "/api/users?username=test_user_active",
@@ -113,7 +112,7 @@ def test_user_get(access_token):
     assert response.json()["users"][0]["username"] == "test_user_active"
 
 
-def test_reset_user_usage(access_token):
+def test_reset_user_usage(mock_db_session, access_token):
     """Test that the user usage can be reset."""
     response = client.post(
         "/api/user/test_user_active/reset",
@@ -122,7 +121,7 @@ def test_reset_user_usage(access_token):
     assert response.status_code == status.HTTP_200_OK
 
 
-def test_user_update(access_token):
+def test_user_update(mock_db_session, access_token):
     """Test that the user update route is accessible."""
     response = client.put(
         "/api/user/test_user_active",
@@ -143,7 +142,7 @@ def test_user_update(access_token):
     assert response.json()["next_plan"]["fire_on_either"] is True
 
 
-def test_reset_by_next_user_usage(access_token):
+def test_reset_by_next_user_usage(mock_db_session, access_token):
     """Test that the user next plan is available."""
     response = client.post(
         "/api/user/test_user_active/active-next",
@@ -152,7 +151,7 @@ def test_reset_by_next_user_usage(access_token):
     assert response.status_code == status.HTTP_200_OK
 
 
-def test_revoke_user_subscription(access_token):
+def test_revoke_user_subscription(mock_db_session, access_token):
     """Test revoke user subscription info."""
     response = client.post(
         "/api/user/test_user_active/revoke_sub",
@@ -161,7 +160,7 @@ def test_revoke_user_subscription(access_token):
     assert response.status_code == status.HTTP_200_OK
 
 
-def test_user_delete(access_token):
+def test_user_delete(mock_db_session, access_token):
     """Test that the user delete route is accessible."""
     response = client.delete(
         "/api/user/test_user_active",
@@ -170,7 +169,7 @@ def test_user_delete(access_token):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
-def test_create_user_with_template(access_token):
+def test_create_user_with_template(mock_db_session, access_token):
     response = client.post(
         "/api/user/from-template",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -183,7 +182,7 @@ def test_create_user_with_template(access_token):
     assert response.json()["status"] == "active"
 
 
-def test_modify_user_with_template(access_token):
+def test_modify_user_with_template(mock_db_session, access_token):
     response = client.put(
         "/api/user/from-template/test_user_template",
         headers={"Authorization": f"Bearer {access_token}"},

@@ -1,6 +1,6 @@
 from fastapi import status
-from tests.api import client
 
+from tests.api import client
 
 xray_config = {
     "log": {"loglevel": "info"},
@@ -306,7 +306,7 @@ xray_config = {
 }
 
 
-def test_core_create(access_token):
+def test_core_create(mock_db_session, access_token):
     """Test that the core create route is accessible."""
 
     response = client.post(
@@ -326,7 +326,7 @@ def test_core_create(access_token):
     assert response.json()["fallbacks_inbound_tags"] == ""
 
 
-def test_core_update(access_token):
+def test_core_update(mock_db_session, access_token):
     """Test that the core update route is accessible."""
 
     response = client.put(
@@ -347,7 +347,7 @@ def test_core_update(access_token):
     assert response.json()["fallbacks_inbound_tags"] == "123"
 
 
-def test_core_get(access_token):
+def test_core_get(mock_db_session, access_token):
     """Test that the core get route is accessible."""
 
     response = client.get(
@@ -358,7 +358,7 @@ def test_core_get(access_token):
     assert response.json()["config"] == xray_config
 
 
-def test_core_delete_1(access_token):
+def test_core_delete_1(mock_db_session, access_token):
     """Test that the core delete route is accessible."""
 
     response = client.delete(
@@ -367,7 +367,7 @@ def test_core_delete_1(access_token):
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-def test_core_delete_2(access_token):
+def test_core_delete_2(mock_db_session, access_token):
     """Test that the core delete route is accessible."""
 
     response = client.post(
@@ -394,7 +394,7 @@ def test_core_delete_2(access_token):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
-def test_inbounds_get(access_token):
+def test_inbounds_get(mock_db_session, access_token):
     """Test that the inbounds get route is accessible."""
 
     response = client.get(
