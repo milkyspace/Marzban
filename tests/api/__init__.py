@@ -62,9 +62,8 @@ async def get_test_db():
     async with GetTestDB() as db:
         yield db
 
-base.GetDB = GetTestDB
 
-from app import app # noqa
+from app import app  # noqa
 
 
 app.dependency_overrides[base.get_db] = get_test_db
