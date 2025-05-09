@@ -2194,7 +2194,7 @@ async def modify_settings(db: AsyncSession, db_setting: Settings, modify: Settin
 
     for key, value in settings_data.items():
         setattr(db_setting, key, value)
-    
+
     await db.commit()
     await db.refresh(db_setting)
     return settings_data

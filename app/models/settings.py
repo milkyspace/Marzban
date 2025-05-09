@@ -64,15 +64,17 @@ class NotficationSettings(BaseModel):
 
     # Telegram Settings
     telegram_api_token: str | None
-    telegram_logger_admin_id: int | None
-    telegram_logger_channel_id: int | None
-    telegram_logger_topic_id: int | None
+    telegram_admin_id: int | None
+    telegram_channel_id: int | None
+    telegram_topic_id: int | None
 
     # Discord Settings
     discord_webhook_url: str | None
 
     # Proxy Settings
     proxy_url: str | None
+
+    max_retries: int = Field(gt=1)
 
     @field_validator("proxy_url", mode="before")
     @classmethod

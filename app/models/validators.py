@@ -151,10 +151,10 @@ class ProxyValidator:
         if value is None:
             return value
         pattern = (
-            r'^(?P<scheme>http|https|socks4|socks5)://'
-            r'((?P<user>[^\s:@]+):(?P<pass>[^\s:@]+)@)?'
-            r'(?P<host>[a-zA-Z0-9\.-]+)'
-            r':(?P<port>\d{1,5})$'
+            r"^(?P<scheme>http|https|socks4|socks5)://"
+            r"((?P<user>[^\s:@]+):(?P<pass>[^\s:@]+)@)?"
+            r"(?P<host>[a-zA-Z0-9\.-]+)"
+            r":(?P<port>\d{1,5})$"
         )
         if not re.match(pattern, value):
             raise ValueError(

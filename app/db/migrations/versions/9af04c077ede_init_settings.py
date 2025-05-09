@@ -42,13 +42,15 @@ notfication_settings = {
     "notify_discord": True if config.DISCORD_WEBHOOK_URL else False,
 
     "telegram_api_token": config.TELEGRAM_API_TOKEN,
-    "telegram_logger_admin_id": config.TELEGRAM_ADMIN_ID,
-    "telegram_logger_channel_id": config.TELEGRAM_LOGGER_CHANNEL_ID,
-    "telegram_logger_topic_id": config.TELEGRAM_LOGGER_TOPIC_ID,
+    "telegram_admin_id": config.TELEGRAM_ADMIN_ID,
+    "telegram_channel_id": config.TELEGRAM_LOGGER_CHANNEL_ID,
+    "telegram_topic_id": config.TELEGRAM_LOGGER_TOPIC_ID,
 
     "discord_webhook_url": config.DISCORD_WEBHOOK_URL,
 
     "proxy_url": config.NOTIFICATION_PROXY_URL,
+
+    "max_retries": 3,
 }
 
 notfication_enable = {
