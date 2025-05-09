@@ -10,7 +10,7 @@ def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = AsyncMock()
     db_session.__aenter__.return_value = TestSession
     db_session.__aexit__.return_value = None
-    monkeypatch.setattr("app.db.GetDB", db_session)
+    monkeypatch.setattr("app.settings.GetDB", db_session)
     return db_session
 
 
