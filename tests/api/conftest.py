@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 from . import GetTestDB, client
@@ -6,8 +8,9 @@ from . import GetTestDB, client
 @pytest.fixture
 def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = GetTestDB()
-    monkeypatch.setattr("app.db.GetDB", GetTestDB)
-    return db_session
+    mock_getdb = MagicMock(return_value=db_session)
+    monkeypatch.setattr("app.db.GetDB", mock_getdb)
+    return mock_getdb
 
 
 @pytest.fixture

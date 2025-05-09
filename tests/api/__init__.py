@@ -1,10 +1,12 @@
 import asyncio
 import json
-from fastapi.testclient import TestClient
+
 from decouple import config
-from sqlalchemy.pool import StaticPool, NullPool
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from fastapi.testclient import TestClient
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool, StaticPool
+
 from app import app
 from app.db import get_db
 from app.db.base import Base
@@ -45,8 +47,9 @@ if TEST_FROM == "local":
 
 
 class GetTestDB:
-    def __init__(self):
+    def __init__(self, from_="it self"):
         self.db = TestSession()
+        print(from_)
 
     async def __aenter__(self):
         return self.db
@@ -59,7 +62,7 @@ class GetTestDB:
 
 
 async def get_test_db():
-    async with GetTestDB() as db:
+    async with GetTestDB("fastAPI") as db:
         yield db
 
 
