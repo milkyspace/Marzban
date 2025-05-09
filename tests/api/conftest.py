@@ -1,16 +1,17 @@
-from unittest.mock import MagicMock
-
 import pytest
+
+import app.db
 
 from . import GetTestDB, client
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = GetTestDB()
-    mock_getdb = MagicMock(return_value=db_session)
-    monkeypatch.setattr("app.db.GetDB", mock_getdb)
-    return mock_getdb
+    # mock_getdb = MagicMock(return_value=db_session)
+    monkeypatch.setattr(app.db, "GetDB", db_session)
+    # return mock_getdb
+    return db_session
 
 
 @pytest.fixture
