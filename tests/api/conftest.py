@@ -10,17 +10,6 @@ from . import TestSession, client
 @pytest.fixture(autouse=True)
 def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     db_session = MagicMock(spec=TestSession)
-
-    class MockSessionContextManager:
-        async def __aenter__(self):
-            return db_session
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-    # Step 3: Patch GetDB to return the context manager when called
-    monkeypatch.setattr("app.settings.GetDB", MockSessionContextManager)
-
     monkeypatch.setattr("app.settings.GetDB", db_session)
     return db_session
 
