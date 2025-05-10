@@ -8,7 +8,7 @@ from enum import Enum
 from random import randint
 from typing import List, Optional, Union
 
-from sqlalchemy import and_, delete, func, not_, or_, select, update
+from sqlalchemy import String, and_, delete, func, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Query, joinedload, selectinload
 from sqlalchemy.sql.functions import coalesce
@@ -84,6 +84,33 @@ def _build_trunc_expression(period: Period, column):
         return func.strftime(SQLITE_FORMATS[period.value], column)
 
     raise ValueError(f"Unsupported dialect: {DATABASE_DIALECT}")
+
+
+def json_extract(column, path: str):
+    """
+    Args:
+        column: The JSON column in your model
+        dialect_name: The database name
+        path: JSON path (e.g., '$.theme')
+    """
+    match DATABASE_DIALECT:
+        case "postgresql":
+            return func.jsonb_path_query(column, path).cast(String)
+        case "mysql":
+            return func.json_unquote(func.json_extract(column, path)).cast(String)
+        case "sqlite":
+            return func.json_extract(column, path).cast(String)
+
+
+def build_json_proxy_settings_search_condition(column, value: str):
+    """
+    Builds a condition to search JSON column for UUIDs or passwords.
+    Supports PostgreSQL, MySQL, SQLite.
+    """
+    return or_(*[
+        json_extract(column, field) == value
+        for field in ("$.vmess.id", "$.vless.id", "$.trojan.password", "$.shadowsocks.password")
+    ])
 
 
 async def add_default_host(db: AsyncSession, inbound: ProxyInbound):
@@ -324,6 +351,7 @@ async def get_users(
     limit: int | None = None,
     usernames: list[str] | None = None,
     search: str | None = None,
+    proxy_id: str | None = None,
     status: UserStatus | list[UserStatus] | None = None,
     sort: list[UsersSortingOptions] | None = None,
     admin: Admin | None = None,
@@ -377,18 +405,14 @@ async def get_users(
 
     if group_ids:
         filters.append(User.groups.any(Group.id.in_(group_ids)))
+    if proxy_id:
+        filters.append(build_json_proxy_settings_search_condition(User.proxy_settings, proxy_id))
 
     if filters:
         stmt = stmt.where(and_(*filters))
 
     if sort:
         stmt = stmt.order_by(*sort)
-
-    total = None
-    if return_with_count:
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        result = await db.execute(count_stmt)
-        total = result.scalar()
 
     if offset:
         stmt = stmt.offset(offset)
@@ -397,6 +421,12 @@ async def get_users(
 
     result = await db.execute(stmt)
     users = list(result.unique().scalars().all())
+
+    total = None
+    if return_with_count:
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        result = await db.execute(count_stmt)
+        total = result.scalar()
 
     for user in users:
         await load_user_attrs(user)
