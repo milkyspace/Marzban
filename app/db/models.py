@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime as dt, timezone as tz
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -46,13 +46,13 @@ class Admin(Base):
     __tablename__ = "admins"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
     username: Mapped[str] = mapped_column(String(34), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
     users: Mapped[List["User"]] = relationship(back_populates="admin", init=False, default_factory=list)
     usage_logs: Mapped[List["AdminUsageLogs"]] = relationship(back_populates="admin", init=False, default_factory=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), init=False)
     is_sudo: Mapped[bool] = mapped_column(default=False)
-    password_reset_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    password_reset_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
     discord_webhook: Mapped[Optional[str]] = mapped_column(String(1024), default=None)
     discord_id: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
@@ -91,7 +91,7 @@ class AdminUsageLogs(Base):
     admin_id: Mapped[int] = mapped_column(ForeignKey("admins.id"))
     admin: Mapped["Admin"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    reset_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc))
 
 
 class ReminderType(str, Enum):
@@ -119,6 +119,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
     username: Mapped[str] = mapped_column(CaseSensitiveString(128), unique=True, index=True)
     node_usages: Mapped[List["NodeUserUsage"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", init=False
@@ -140,21 +141,18 @@ class User(Base):
         SQLEnum(UserDataLimitResetStrategy),
         default=UserDataLimitResetStrategy.no_reset,
     )
-    expire: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    expire: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     admin_id: Mapped[Optional[int]] = mapped_column(ForeignKey("admins.id"), default=None)
-    sub_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
-    sub_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    sub_revoked_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    sub_updated_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     sub_last_user_agent: Mapped[Optional[str]] = mapped_column(String(512), default=None)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), init=False)
     note: Mapped[Optional[str]] = mapped_column(String(500), default=None)
-    online_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    online_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     on_hold_expire_duration: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
-    on_hold_timeout: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    on_hold_timeout: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
     auto_delete_in_days: Mapped[Optional[int]] = mapped_column(default=None)
-    edit_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
-    last_status_change: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), default=None
-    )
+    edit_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
+    last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
     @hybrid_property
     def reseted_usage(self) -> int:
@@ -198,7 +196,7 @@ class User(Base):
 
     @hybrid_property
     def is_expired(self) -> bool:
-        return self.expire is not None and self.expire <= datetime.now(timezone.utc)
+        return self.expire is not None and self.expire <= dt.now(tz.utc)
 
     @is_expired.expression
     def is_expired(cls):
@@ -214,15 +212,15 @@ class User(Base):
 
     @hybrid_property
     def become_online(self) -> bool:
-        now = datetime.now(timezone.utc)
+        now = dt.now(tz.utc)
 
         # Check if online_at is set and greater than or equal to base time
         if self.online_at:
-            base_time = (self.edit_at or self.created_at).replace(tzinfo=timezone.utc)
-            return self.online_at.replace(tzinfo=timezone.utc) >= base_time
+            base_time = (self.edit_at or self.created_at).replace(tzinfo=tz.utc)
+            return self.online_at.replace(tzinfo=tz.utc) >= base_time
 
         # Check if on_hold_timeout has passed
-        if self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=timezone.utc) <= now:
+        if self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=tz.utc) <= now:
             return True
 
         return False
@@ -256,7 +254,7 @@ class User(Base):
     def days_left(self) -> int:
         if not self.expire:
             return 0
-        remaining_days = (self.expire.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)).days
+        remaining_days = (self.expire.replace(tzinfo=tz.utc) - dt.now(tz.utc)).days
         return max(remaining_days, 0)
 
     @days_left.expression
@@ -326,7 +324,7 @@ class UserUsageResetLogs(Base):
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     user: Mapped["User"] = relationship(back_populates="usage_logs", init=False)
     used_traffic_at_reset: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    reset_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reset_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
 
 
 class ProxyInbound(Base):
@@ -466,6 +464,7 @@ class Node(Base):
     __tablename__ = "nodes"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
     name: Mapped[str] = mapped_column(CaseSensitiveString(256), unique=True)
     address: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
     port: Mapped[int] = mapped_column(unique=False, nullable=False)
@@ -484,10 +483,7 @@ class Node(Base):
     core_config: Mapped[Optional["CoreConfig"]] = relationship("CoreConfig", init=False)
     stats: Mapped[List["NodeStat"]] = relationship(back_populates="node", cascade="all, delete-orphan", init=False)
     status: Mapped[NodeStatus] = mapped_column(SQLEnum(NodeStatus), default=NodeStatus.connecting)
-    last_status_change: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), default=None
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), init=False)
+    last_status_change: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc))
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
     usage_coefficient: Mapped[float] = mapped_column(Float, server_default=text("1.0"), default=1)
@@ -507,7 +503,7 @@ class NodeUserUsage(Base):
     __table_args__ = (UniqueConstraint("created_at", "user_id", "node_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), unique=False)  # one hour per record
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # one hour per record
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user: Mapped["User"] = relationship(back_populates="node_usages", init=False)
     node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"))
@@ -520,7 +516,7 @@ class NodeUsage(Base):
     __table_args__ = (UniqueConstraint("created_at", "node_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), unique=False)  # one hour per record
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # one hour per record
     node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"))
     node: Mapped["Node"] = relationship(back_populates="usages", init=False)
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -531,12 +527,12 @@ class NotificationReminder(Base):
     __tablename__ = "notification_reminders"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     user: Mapped["User"] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
     threshold: Mapped[Optional[int]] = mapped_column(default=None)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), init=False)
+    expires_at: Mapped[Optional[dt]] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class Group(Base):
@@ -570,17 +566,18 @@ class CoreConfig(Base):
     __tablename__ = "core_configs"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
     name: Mapped[str] = mapped_column(String(256))
     config: Mapped[Dict[str, Any]] = mapped_column(JSON(False))
     exclude_inbound_tags: Mapped[Optional[str]] = mapped_column(String(2048))
     fallbacks_inbound_tags: Mapped[Optional[str]] = mapped_column(String(2048))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), init=False)
 
 
 class NodeStat(Base):
     __tablename__ = "node_stats"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default=lambda: dt.now(tz.utc), init=False)
     node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
     node: Mapped["Node"] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
@@ -589,7 +586,6 @@ class NodeStat(Base):
     cpu_usage: Mapped[float] = mapped_column(unique=False, nullable=False)
     incoming_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
     outgoing_bandwidth_speed: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), init=False)
 
 
 class Settings(Base):
