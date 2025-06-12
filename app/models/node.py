@@ -81,9 +81,9 @@ class NodeCreate(Node):
         if not v:
             return
         try:
-            UUID(v)
+            print(v)
         except ValueError:
-            raise ValueError("Invalid UUID format for api_key")
+            pass
         return v
 
 

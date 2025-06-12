@@ -8,7 +8,7 @@ from app.utils.system import random_password
 
 
 class VMessSettings(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
+    id: str = Field(default_factory=lambda: str(uuid4()))
 
 
 class XTLSFlows(str, Enum):
@@ -17,7 +17,7 @@ class XTLSFlows(str, Enum):
 
 
 class VlessSettings(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
+    id: str = Field(default_factory=lambda: str(uuid4()))
     flow: XTLSFlows = XTLSFlows.NONE
 
 
