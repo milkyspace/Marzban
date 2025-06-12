@@ -19,10 +19,10 @@ export const xtlsFlowsEnum = z.enum(['', 'xtls-rprx-vision'])
 export const shadowsocksMethodsEnum = z.enum(['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-poly1305'])
 
 export const vMessSettingsSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().optional(),
 })
 export const vlessSettingsSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().optional(),
   flow: xtlsFlowsEnum.optional(),
 })
 export const trojanSettingsSchema = z.object({
