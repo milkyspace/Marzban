@@ -65,18 +65,18 @@ class ProxySettings(BaseModel, use_enum_values=True):
 
 
 class VMessSettings(ProxySettings):
-    id: UUID = Field(default_factory=uuid4)
+    id: str = Field(default_factory=lambda: str(uuid4()))
 
     def revoke(self):
-        self.id = uuid4()
+        self.id = str(uuid4())
 
 
 class VLESSSettings(ProxySettings):
-    id: UUID = Field(default_factory=uuid4)
+    id: str = Field(default_factory=lambda: str(uuid4()))
     flow: XTLSFlows = XTLSFlows.NONE
 
     def revoke(self):
-        self.id = uuid4()
+        self.id = str(uuid4())
 
 
 class TrojanSettings(ProxySettings):

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod 
 from enum import Enum
-from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -29,11 +28,11 @@ class Account(BaseModel, ABC):
 
 
 class VMessAccount(Account):
-    id: UUID
+    id: str
 
     @property
     def message(self):
-        return Message(VMessAccountPb2(id=str(self.id)))
+        return Message(VMessAccountPb2(id=self.id))
 
 
 class XTLSFlows(Enum):
@@ -42,12 +41,12 @@ class XTLSFlows(Enum):
 
 
 class VLESSAccount(Account):
-    id: UUID
+    id: str
     flow: XTLSFlows = XTLSFlows.NONE
 
     @property
     def message(self):
-        return Message(VLESSAccountPb2(id=str(self.id), flow=self.flow.value))
+        return Message(VLESSAccountPb2(id=self.id, flow=self.flow.value))
 
 
 class TrojanAccount(Account):

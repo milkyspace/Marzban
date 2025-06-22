@@ -23,6 +23,7 @@ app = FastAPI(
 scheduler = BackgroundScheduler(
     {"apscheduler.job_defaults.max_instances": 20}, timezone="UTC"
 )
+
 logger = logging.getLogger("uvicorn.error")
 
 app.add_middleware(
